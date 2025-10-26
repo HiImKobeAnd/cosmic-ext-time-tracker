@@ -1,12 +1,19 @@
 use cosmic::{
     app,
-    dbus_activation::subscription,
-    iced::{futures::SinkExt, stream, Subscription},
+    iced::{futures::SinkExt, stream, Alignment, Length, Padding, Subscription},
     iced_widget::row,
-    widget::button,
+    widget::{autosize, button, Id, Text},
     Element, Task,
 };
-use std::time::{Duration, SystemTime};
+use std::{
+    sync::LazyLock,
+    time::{Duration, SystemTime},
+};
+use tokio::time;
+
+use crate::fl;
+
+static AUTOSIZE_MAIN_ID: LazyLock<Id> = LazyLock::new(|| Id::new("autosize-main"));
 
 pub struct AppletModel {
     core: cosmic::Core,
@@ -26,10 +33,22 @@ pub enum Message {
 
 impl AppletModel {
     fn horizontal_layout(&self) -> Element<'_, Message> {
-        Element::from(row!(self
-            .core
-            .applet
-            .text(self.timer_duration.as_secs().to_string())))
+        let button = button::custom(Text::new(if self.timer_running {
+            fl!("stop")
+        } else {
+            fl!("start")
+        }))
+        .on_press(Message::ToggleTimer);
+        Element::from(
+            row!(
+                self.core
+                    .applet
+                    .text(self.timer_duration.as_secs().to_string()),
+                button
+            )
+            .align_y(Alignment::Center),
+        )
+        // .explain(cosmic::iced::Color::WHITE)
     }
 }
 impl cosmic::Application for AppletModel {
@@ -57,9 +76,8 @@ impl cosmic::Application for AppletModel {
         )
     }
 
-    fn view(&self) -> cosmic::Element<'_, Self::Message> {
-        let button = button::custom(self.horizontal_layout()).on_press_down(Message::ToggleTimer);
-        button.into()
+    fn view(&self) -> cosmic::Element<Self::Message> {
+        autosize::autosize(self.horizontal_layout(), AUTOSIZE_MAIN_ID.clone()).into()
     }
 
     fn update(&mut self, message: Self::Message) -> app::Task<Self::Message> {
@@ -90,12 +108,24 @@ impl cosmic::Application for AppletModel {
             Subscription::run_with_id(
                 "ticker",
                 stream::channel(1, |mut output| async move {
+                    let mut period = 1;
+                    let mut timer = time::interval(time::Duration::from_secs(period));
+                    timer.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
+
                     loop {
-                        let _ = output.send(Message::Tick).await;
+                        tokio::select! {
+                            _ = timer.tick() => {
+                                let _ = output.send(Message::Tick).await;
+                            }
+                        }
                     }
                 }),
             )
         }
         time_ticker()
+    }
+
+    fn style(&self) -> Option<cosmic::iced_runtime::Appearance> {
+        Some(cosmic::applet::style())
     }
 }
