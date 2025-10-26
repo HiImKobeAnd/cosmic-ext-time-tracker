@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 mod app;
+mod applet;
 mod config;
 mod i18n;
 
@@ -19,5 +20,6 @@ fn main() -> cosmic::iced::Result {
     );
 
     // Starts the application's event loop with `()` as the application's flags.
-    cosmic::app::run::<app::AppModel>(settings, ())
+    // cosmic::app::run::<app::AppModel>(settings, ())
+    cosmic::applet::run::<applet::AppletModel>(())
 }

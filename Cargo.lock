@@ -1033,6 +1033,7 @@ dependencies = [
 name = "cosmic-ext-time-tracker"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "futures-util",
  "i18n-embed 0.15.4",
  "i18n-embed-fl 0.9.4",
@@ -1054,6 +1055,20 @@ dependencies = [
  "thiserror 2.0.17",
  "tracing",
  "xdg 2.5.2",
+]
+
+[[package]]
+name = "cosmic-panel-config"
+version = "0.1.0"
+source = "git+https://github.com/pop-os/cosmic-panel#f1a947605243a79c4a4a0813fa234fa21440c859"
+dependencies = [
+ "anyhow",
+ "cosmic-config",
+ "serde",
+ "smithay-client-toolkit 0.20.0",
+ "tracing",
+ "wayland-protocols-wlr",
+ "xdg-shell-wrapper-config",
 ]
 
 [[package]]
@@ -2924,6 +2939,7 @@ dependencies = [
  "cosmic-client-toolkit",
  "cosmic-config",
  "cosmic-freedesktop-icons",
+ "cosmic-panel-config",
  "cosmic-settings-daemon",
  "cosmic-theme",
  "css-color",
@@ -2938,7 +2954,6 @@ dependencies = [
  "iced_renderer",
  "iced_runtime",
  "iced_tiny_skia",
- "iced_wgpu",
  "iced_widget",
  "iced_winit",
  "image",
@@ -6438,6 +6453,15 @@ checksum = "ec1cdab258fb55c0da61328dc52c8764709b249011b2cad0454c72f0bf10a1f6"
 dependencies = [
  "libc",
  "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "xdg-shell-wrapper-config"
+version = "0.1.0"
+source = "git+https://github.com/pop-os/cosmic-panel#f1a947605243a79c4a4a0813fa234fa21440c859"
+dependencies = [
+ "serde",
+ "wayland-protocols-wlr",
 ]
 
 [[package]]
