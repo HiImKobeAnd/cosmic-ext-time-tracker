@@ -2,12 +2,15 @@ use cosmic::{
     app,
     iced::{futures::SinkExt, stream, Alignment, Length, Padding, Subscription},
     iced_widget::row,
-    widget::{autosize, button, Id, Text},
+    widget::{autosize, button, container, dropdown, vertical_space, Id, Text},
     Element, Task,
 };
 use std::{
+    borrow::Cow,
+    collections::{hash_map, HashMap, HashSet},
     sync::LazyLock,
     time::{Duration, SystemTime},
+    usize,
 };
 use tokio::time;
 
@@ -20,33 +23,28 @@ pub struct AppletModel {
     timer_counter: SystemTime,
     timer_running: bool,
     timer_duration: Duration,
+    selected_tag: usize,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    // TogglePopup,
     ToggleTimer,
     Tick,
-    // ResetTimer,
+    ResetTimer,
     // SetTimer(i32),
+    SelectedTag(usize),
 }
 
 impl AppletModel {
     fn horizontal_layout(&self) -> Element<'_, Message> {
-        let button = button::custom(Text::new(if self.timer_running {
-            fl!("stop")
-        } else {
-            fl!("start")
-        }))
-        .on_press(Message::ToggleTimer);
+        let counter = button::custom(Text::new(format!("{:?}", self.timer_duration.as_secs())))
+            .on_press(Message::ToggleTimer);
+        let reset_button =
+            button::custom(Text::new(format!("Reset"))).on_press(Message::ResetTimer);
         Element::from(
-            row!(
-                self.core
-                    .applet
-                    .text(self.timer_duration.as_secs().to_string()),
-                button
-            )
-            .align_y(Alignment::Center),
+            row!(counter, reset_button)
+                .align_y(Alignment::Center)
+                .padding([0, self.core.applet.suggested_padding(true)]),
         )
         // .explain(cosmic::iced::Color::WHITE)
     }
@@ -71,13 +69,32 @@ impl cosmic::Application for AppletModel {
                 timer_counter: SystemTime::now(),
                 timer_running: true,
                 timer_duration: Duration::new(0, 0),
+                selected_tag: 0,
             },
             Task::none(),
         )
     }
 
-    fn view(&self) -> cosmic::Element<Self::Message> {
-        autosize::autosize(self.horizontal_layout(), AUTOSIZE_MAIN_ID.clone()).into()
+    fn subscription(&self) -> Subscription<Message> {
+        fn time_ticker() -> Subscription<Message> {
+            Subscription::run_with_id(
+                "ticker",
+                stream::channel(1, |mut output| async move {
+                    let mut period = 1;
+                    let mut timer = time::interval(time::Duration::from_secs(period));
+                    timer.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
+
+                    loop {
+                        tokio::select! {
+                            _ = timer.tick() => {
+                                let _ = output.send(Message::Tick).await;
+                            }
+                        }
+                    }
+                }),
+            )
+        }
+        time_ticker()
     }
 
     fn update(&mut self, message: Self::Message) -> app::Task<Self::Message> {
@@ -101,28 +118,19 @@ impl cosmic::Application for AppletModel {
                 }
                 Task::none()
             }
+            Message::SelectedTag(_) => {
+                println!("Changed");
+                Task::none()
+            }
+            Message::ResetTimer => {
+                self.timer_duration = Duration::new(0, 0);
+                self.timer_counter = SystemTime::now();
+                Task::none()
+            }
         }
     }
-    fn subscription(&self) -> Subscription<Message> {
-        fn time_ticker() -> Subscription<Message> {
-            Subscription::run_with_id(
-                "ticker",
-                stream::channel(1, |mut output| async move {
-                    let mut period = 1;
-                    let mut timer = time::interval(time::Duration::from_secs(period));
-                    timer.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
-
-                    loop {
-                        tokio::select! {
-                            _ = timer.tick() => {
-                                let _ = output.send(Message::Tick).await;
-                            }
-                        }
-                    }
-                }),
-            )
-        }
-        time_ticker()
+    fn view(&self) -> cosmic::Element<Self::Message> {
+        autosize::autosize(self.horizontal_layout(), AUTOSIZE_MAIN_ID.clone()).into()
     }
 
     fn style(&self) -> Option<cosmic::iced_runtime::Appearance> {
