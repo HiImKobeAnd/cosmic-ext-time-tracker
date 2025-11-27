@@ -21,7 +21,7 @@
         };
         deps = with pkgs; [
           rust-bin.stable.latest.default
-          cargo-watch
+          bacon
           just
           libcosmicAppHook
         ];

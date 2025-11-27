@@ -58,6 +58,10 @@ check-json: (check '--message-format=json')
 run *args:
     env RUST_BACKTRACE=full cargo run --release {{args}}
 
+# Builds then kills cosmic-panel
+dev:
+    bacon dev
+
 # Installs files
 install:
     install -Dm0755 {{bin-src}} {{bin-dst}}

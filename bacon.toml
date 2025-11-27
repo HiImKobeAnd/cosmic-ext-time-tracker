@@ -1,0 +1,8 @@
+[jobs.dev]
+command = [
+  "sh",
+  "-c",
+  "cargo build && pkill cosmic-panel"
+]
+need_stdout = true
+
