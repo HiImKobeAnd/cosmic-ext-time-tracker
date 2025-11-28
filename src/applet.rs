@@ -4,7 +4,7 @@ use cosmic::{
     iced::{
         futures::SinkExt,
         stream,
-        widget::{column, row, vertical_space},
+        widget::{column, row},
         window, Alignment, Rectangle, Subscription,
     },
     iced_winit::commands::popup::{destroy_popup, get_popup},
@@ -21,7 +21,6 @@ use std::{
 };
 use tokio::time;
 
-use crate::fl;
 
 static AUTOSIZE_MAIN_ID: LazyLock<Id> = LazyLock::new(|| Id::new("autosize-main"));
 
@@ -75,9 +74,9 @@ impl AppletModel {
         let counter = button::custom(Text::new(format!("{:?}", self.timer_duration.as_secs())))
             .on_press(Message::ToggleTimer);
         let reset_button =
-            button::custom(Text::new(format!("Reset"))).on_press(Message::ResetTimer);
+            button::custom(Text::new("Reset".to_string())).on_press(Message::ResetTimer);
         let popup_toggle_button =
-            button::custom(Text::new(format!("Popup!"))).on_press(Message::TogglePopup);
+            button::custom(Text::new("Popup!".to_string())).on_press(Message::TogglePopup);
         Element::from(
             row!(counter, reset_button, popup_toggle_button)
                 .align_y(Alignment::Center)
@@ -155,10 +154,7 @@ impl cosmic::Application for AppletModel {
             }
             Message::Tick => {
                 if self.timer_running {
-                    match self.timer_counter.elapsed() {
-                        Ok(elapsed) => self.timer_duration += elapsed,
-                        Err(_) => (),
-                    }
+                    if let Ok(elapsed) = self.timer_counter.elapsed() { self.timer_duration += elapsed }
                     self.timer_counter = SystemTime::now();
                 }
                 Task::none()
@@ -221,16 +217,16 @@ impl cosmic::Application for AppletModel {
             } else {
                 self.horizontal_layout()
             },
-            AUTOSIZE_MAIN_ID.clone().into(),
+            AUTOSIZE_MAIN_ID.clone(),
         )
         .into()
     }
 
     fn view_window(&self, id: window::Id) -> Element<'_, Self::Message> {
         let Spacing {
-            space_xxs, space_s, ..
+              ..
         } = theme::active().cosmic().spacing;
-        let counter = button::custom(Text::new(format!("hello"))).on_press(Message::ToggleTimer);
+        let counter = button::custom(Text::new("hello".to_string())).on_press(Message::ToggleTimer);
         let content =
             column![row![counter].align_y(Alignment::Center).padding([12, 20])].padding([8, 0]);
         self.core.applet.popup_container(container(content)).into()
