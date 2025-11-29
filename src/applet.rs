@@ -10,7 +10,8 @@ use cosmic::{
     iced_winit::commands::popup::{destroy_popup, get_popup},
     theme,
     widget::{
-        autosize, button, container, rectangle_tracker::RectangleUpdate, Id, RectangleTracker, Text,
+        autosize, button, container, icon, rectangle_tracker::RectangleUpdate, Id,
+        RectangleTracker, Text,
     },
     Element, Task,
 };
@@ -20,7 +21,6 @@ use std::{
     time::{Duration, SystemTime},
 };
 use tokio::time;
-
 
 static AUTOSIZE_MAIN_ID: LazyLock<Id> = LazyLock::new(|| Id::new("autosize-main"));
 
@@ -54,32 +54,32 @@ pub struct AppletModel {
     timer_counter: SystemTime,
     timer_running: bool,
     timer_duration: Duration,
-    selected_tag: usize,
-    rectangle_tracker: Option<RectangleTracker<u32>>,
-    rectangle: Rectangle,
+    locale: Locale,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
     TogglePopup,
-    Rectangle(RectangleUpdate<u32>),
     ToggleTimer,
     Tick,
     ResetTimer,
-    // SetTimer(i32),
+    CloseRequested(window::Id),
 }
 
 impl AppletModel {
     fn horizontal_layout(&self) -> Element<'_, Message> {
         let counter = button::custom(Text::new(format!("{:?}", self.timer_duration.as_secs())))
-            .on_press(Message::ToggleTimer);
-        let reset_button =
-            button::custom(Text::new("Reset".to_string())).on_press(Message::ResetTimer);
-        let popup_toggle_button =
-            button::custom(Text::new("Popup!".to_string())).on_press(Message::TogglePopup);
+            .on_press(Message::ToggleTimer)
+            .class(cosmic::theme::Button::AppletIcon);
+        let reset_button = button::icon(icon::from_name("object-rotate-left-symbolic"))
+            .on_press(Message::ResetTimer)
+            .class(cosmic::theme::Button::AppletIcon);
+        let popup_toggle_button = button::icon(icon::from_name("open-menu-symbolic"))
+            .on_press(Message::TogglePopup)
+            .class(cosmic::theme::Button::AppletIcon);
         Element::from(
-            row!(counter, reset_button, popup_toggle_button)
-                .align_y(Alignment::Center)
+            row!(counter, reset_button, popup_toggle_button,)
+                // .align_y(Alignment::Center)
                 .padding([0, self.core.applet.suggested_padding(true)]),
         )
         // .explain(cosmic::iced::Color::WHITE)
@@ -108,12 +108,10 @@ impl cosmic::Application for AppletModel {
             Self {
                 core,
                 popup: None,
-                rectangle_tracker: None,
-                rectangle: Rectangle::default(),
                 timer_counter: SystemTime::now(),
                 timer_running: true,
                 timer_duration: Duration::new(0, 0),
-                selected_tag: 0,
+                locale: get_system_locale(),
             },
             Task::none(),
         )
@@ -154,7 +152,9 @@ impl cosmic::Application for AppletModel {
             }
             Message::Tick => {
                 if self.timer_running {
-                    if let Ok(elapsed) = self.timer_counter.elapsed() { self.timer_duration += elapsed }
+                    if let Ok(elapsed) = self.timer_counter.elapsed() {
+                        self.timer_duration += elapsed
+                    }
                     self.timer_counter = SystemTime::now();
                 }
                 Task::none()
@@ -171,64 +171,47 @@ impl cosmic::Application for AppletModel {
                     let new_id = window::Id::unique();
                     self.popup = Some(new_id);
 
-                    let mut popup_settings = self.core.applet.get_popup_settings(
+                    let popup_settings = self.core.applet.get_popup_settings(
                         self.core.main_window_id().unwrap(),
                         new_id,
                         None,
                         None,
                         None,
                     );
-                    let Rectangle {
-                        x,
-                        y,
-                        width,
-                        height,
-                    } = self.rectangle;
-                    popup_settings.positioner.anchor_rect = Rectangle::<i32> {
-                        x: x.max(1.) as i32,
-                        y: y.max(1.) as i32,
-                        width: width.max(1.) as i32,
-                        height: height.max(1.) as i32,
-                    };
-
-                    popup_settings.positioner.size = None;
 
                     get_popup(popup_settings)
                 }
             }
-            Message::Rectangle(u) => {
-                match u {
-                    RectangleUpdate::Rectangle(r) => {
-                        self.rectangle = r.1;
-                    }
-                    RectangleUpdate::Init(tracker) => {
-                        self.rectangle_tracker = Some(tracker);
-                    }
+            Message::CloseRequested(id) => {
+                if (Some(id)) == self.popup {
+                    self.popup = None;
                 }
                 Task::none()
             }
         }
     }
-    fn view(&self) -> cosmic::Element<Self::Message> {
-        let layout = self.horizontal_layout();
-        autosize::autosize(
-            if let Some(tracker) = self.rectangle_tracker.as_ref() {
-                Element::from(tracker.container(0, layout).ignore_bounds(true))
-            } else {
-                self.horizontal_layout()
-            },
-            AUTOSIZE_MAIN_ID.clone(),
-        )
-        .into()
+    fn view(&self) -> cosmic::Element<'_, Self::Message> {
+        autosize::autosize(self.horizontal_layout(), AUTOSIZE_MAIN_ID.clone()).into()
     }
 
     fn view_window(&self, id: window::Id) -> Element<'_, Self::Message> {
         let Spacing {
-              ..
+            space_xxs, space_s, ..
         } = theme::active().cosmic().spacing;
-        let counter = button::custom(Text::new("hello".to_string())).on_press(Message::ToggleTimer);
-        let content =
-            column![row![counter].align_y(Alignment::Center).padding([12, 20])].padding([8, 0]);
+
+        let icon = if self.timer_running {
+            icon::from_name("media-playback-stop-symbolic")
+        } else {
+            icon::from_name("media-playback-start-symbolic")
+        };
+        let counter = button::icon(icon)
+            .on_press(Message::ToggleTimer)
+            .class(cosmic::theme::Button::AppletIcon);
+        let content = column![row![counter].align_y(Alignment::Center)];
         self.core.applet.popup_container(container(content)).into()
+    }
+
+    fn on_close_requested(&self, id: window::Id) -> Option<Self::Message> {
+        Some(Message::CloseRequested(id))
     }
 }
