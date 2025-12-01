@@ -10,7 +10,7 @@ use cosmic::{
     iced_winit::commands::popup::{destroy_popup, get_popup},
     theme,
     widget::{
-        autosize, button, container, icon, rectangle_tracker::RectangleUpdate, Id,
+        autosize, button, container, icon, nav_bar, rectangle_tracker::RectangleUpdate, Id,
         RectangleTracker, Text,
     },
     Element, Task,
@@ -66,9 +66,21 @@ pub enum Message {
     CloseRequested(window::Id),
 }
 
+fn format_duration(duration: &Duration) -> String {
+    let total_seconds = duration.as_secs();
+    let hours = total_seconds / 3600;
+    let minutes = (total_seconds % 3600) / 60;
+    let seconds = total_seconds % 60;
+
+    match (hours, minutes, seconds) {
+        (h, m, s) if h > 0 => format!("{h}:{m:02}:{s:02}"),
+        _ => format!("{minutes:02}:{seconds:02}"),
+    }
+}
+
 impl AppletModel {
     fn horizontal_layout(&self) -> Element<'_, Message> {
-        let counter = button::custom(Text::new(format!("{:?}", self.timer_duration.as_secs())))
+        let counter = button::custom(Text::new(format_duration(&self.timer_duration)))
             .on_press(Message::ToggleTimer)
             .class(cosmic::theme::Button::AppletIcon);
         let reset_button = button::icon(icon::from_name("object-rotate-left-symbolic"))
@@ -208,6 +220,9 @@ impl cosmic::Application for AppletModel {
             .on_press(Message::ToggleTimer)
             .class(cosmic::theme::Button::AppletIcon);
         let content = column![row![counter].align_y(Alignment::Center)];
+
+        // let content = self.page.view();
+
         self.core.applet.popup_container(container(content)).into()
     }
 
