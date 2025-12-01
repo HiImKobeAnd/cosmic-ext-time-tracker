@@ -5,13 +5,12 @@ use cosmic::{
         futures::SinkExt,
         stream,
         widget::{column, row},
-        window, Alignment, Rectangle, Subscription,
+        window, Alignment, Subscription,
     },
     iced_winit::commands::popup::{destroy_popup, get_popup},
     theme,
     widget::{
-        autosize, button, container, icon, nav_bar, rectangle_tracker::RectangleUpdate, Id,
-        RectangleTracker, Text,
+        autosize, button, container, icon, Id, Text,
     },
     Element, Task,
 };
@@ -208,7 +207,7 @@ impl cosmic::Application for AppletModel {
 
     fn view_window(&self, id: window::Id) -> Element<'_, Self::Message> {
         let Spacing {
-            space_xxs, space_s, ..
+              ..
         } = theme::active().cosmic().spacing;
 
         let icon = if self.timer_running {
