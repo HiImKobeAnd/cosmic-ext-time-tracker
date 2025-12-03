@@ -5,13 +5,12 @@ use cosmic::{
         futures::SinkExt,
         stream,
         widget::{column, row},
-        window, Alignment, Length, Subscription,
+        window, Length, Subscription,
     },
     iced_winit::commands::popup::{destroy_popup, get_popup},
     theme,
     widget::{
         autosize, button, container, dropdown, icon,
-        segmented_button::{self, BuilderEntity},
         text, text_input, Id, Text,
     },
     Element, Task,
@@ -108,7 +107,7 @@ impl AppletModel {
     }
 
     fn task_text_changed(text: String) -> Message {
-        return Message::ToggleTimer;
+        Message::ToggleTimer
     }
 
     fn timer_page(&self) -> Element<'_, Message> {
