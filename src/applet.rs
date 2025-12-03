@@ -5,12 +5,14 @@ use cosmic::{
         futures::SinkExt,
         stream,
         widget::{column, row},
-        window, Alignment, Subscription,
+        window, Alignment, Length, Subscription,
     },
     iced_winit::commands::popup::{destroy_popup, get_popup},
     theme,
     widget::{
-        autosize, button, container, icon, Id, Text,
+        autosize, button, container, dropdown, icon,
+        segmented_button::{self, BuilderEntity},
+        text, text_input, Id, Text,
     },
     Element, Task,
 };
@@ -50,19 +52,31 @@ fn get_system_locale() -> Locale {
 pub struct AppletModel {
     core: cosmic::Core,
     popup: Option<window::Id>,
+    popup_page: Page,
     timer_counter: SystemTime,
     timer_running: bool,
     timer_duration: Duration,
     locale: Locale,
+    current_task: String,
+    current_tag: Option<usize>,
+    tag_selections: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
     TogglePopup,
     ToggleTimer,
-    Tick,
     ResetTimer,
+    Tick,
+    TaskTextChanged(String),
+    TagChanged(usize),
     CloseRequested(window::Id),
+}
+
+pub enum Page {
+    Timer,
+    Log,
+    Settings,
 }
 
 fn format_duration(duration: &Duration) -> String {
@@ -82,17 +96,54 @@ impl AppletModel {
         let counter = button::custom(Text::new(format_duration(&self.timer_duration)))
             .on_press(Message::ToggleTimer)
             .class(cosmic::theme::Button::AppletIcon);
-        let reset_button = button::icon(icon::from_name("object-rotate-left-symbolic"))
-            .on_press(Message::ResetTimer)
-            .class(cosmic::theme::Button::AppletIcon);
         let popup_toggle_button = button::icon(icon::from_name("open-menu-symbolic"))
             .on_press(Message::TogglePopup)
             .class(cosmic::theme::Button::AppletIcon);
         Element::from(
-            row!(counter, reset_button, popup_toggle_button,)
+            row!(counter, popup_toggle_button,)
                 // .align_y(Alignment::Center)
                 .padding([0, self.core.applet.suggested_padding(true)]),
         )
+        // .explain(cosmic::iced::Color::WHITE)
+    }
+
+    fn task_text_changed(text: String) -> Message {
+        return Message::ToggleTimer;
+    }
+
+    fn timer_page(&self) -> Element<'_, Message> {
+        let task_selector = text_input::text_input("Task", self.current_task.clone())
+            .on_input(Message::TaskTextChanged);
+
+        let tag_selector = dropdown::dropdown(
+            self.tag_selections.clone(),
+            self.current_tag,
+            Message::TagChanged,
+        );
+
+        let timer = text::text(format_duration(&self.timer_duration));
+
+        let toggle_timer_button = button::icon(if self.timer_running {
+            icon::from_name("media-playback-stop-symbolic")
+        } else {
+            icon::from_name("media-playback-start-symbolic")
+        })
+        .on_press(Message::ToggleTimer)
+        .class(cosmic::theme::Button::AppletIcon);
+
+        let reset_button = button::icon(icon::from_name("object-rotate-left-symbolic"))
+            .on_press(Message::ResetTimer)
+            .class(cosmic::theme::Button::AppletIcon);
+
+        let popup_toggle_button = button::icon(icon::from_name("open-menu-symbolic"))
+            .on_press(Message::TogglePopup)
+            .class(cosmic::theme::Button::AppletIcon);
+
+        Element::from(column![
+            task_selector.width(Length::Fill),
+            tag_selector.width(Length::Fill),
+            row![timer, toggle_timer_button, reset_button]
+        ])
         // .explain(cosmic::iced::Color::WHITE)
     }
 }
@@ -123,6 +174,14 @@ impl cosmic::Application for AppletModel {
                 timer_running: true,
                 timer_duration: Duration::new(0, 0),
                 locale: get_system_locale(),
+                popup_page: Page::Timer,
+                current_task: String::new(),
+                current_tag: None,
+                tag_selections: vec![
+                    "Systemudvikling".to_string(),
+                    "Programmering".to_string(),
+                    "Teknologi".to_string(),
+                ],
             },
             Task::none(),
         )
@@ -199,6 +258,14 @@ impl cosmic::Application for AppletModel {
                 }
                 Task::none()
             }
+            Message::TaskTextChanged(task) => {
+                self.current_task = task;
+                Task::none()
+            }
+            Message::TagChanged(tag) => {
+                self.current_tag = Some(tag);
+                Task::none()
+            }
         }
     }
     fn view(&self) -> cosmic::Element<'_, Self::Message> {
@@ -206,23 +273,18 @@ impl cosmic::Application for AppletModel {
     }
 
     fn view_window(&self, id: window::Id) -> Element<'_, Self::Message> {
-        let Spacing {
-              ..
-        } = theme::active().cosmic().spacing;
-
-        let icon = if self.timer_running {
-            icon::from_name("media-playback-stop-symbolic")
-        } else {
-            icon::from_name("media-playback-start-symbolic")
+        let Spacing { .. } = theme::active().cosmic().spacing;
+        let content = match self.popup_page {
+            Page::Timer => self.timer_page(),
+            Page::Log => todo!(),
+            Page::Settings => todo!(),
         };
-        let counter = button::icon(icon)
-            .on_press(Message::ToggleTimer)
-            .class(cosmic::theme::Button::AppletIcon);
-        let content = column![row![counter].align_y(Alignment::Center)];
-
-        // let content = self.page.view();
-
-        self.core.applet.popup_container(container(content)).into()
+        self.core
+            .applet
+            .popup_container(container(content))
+            .min_height(200.) // !HACK Fix for dropdown getting cut off
+            .min_width(200.) // !HACK Fix for dropdown getting cut off
+            .into()
     }
 
     fn on_close_requested(&self, id: window::Id) -> Option<Self::Message> {
