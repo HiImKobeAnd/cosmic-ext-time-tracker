@@ -1,3 +1,4 @@
+use chrono::{DateTime, Local};
 use cosmic::{
     app,
     cosmic_theme::Spacing,
@@ -10,13 +11,15 @@ use cosmic::{
     iced_winit::commands::popup::{destroy_popup, get_popup},
     theme,
     widget::{
-        autosize, button, container, dropdown, icon,
-        text, text_input, Id, Text,
+        self, autosize, button, container, dropdown, icon, nav_bar,
+        segmented_button::{self, Entity, StyleSheet},
+        tab_bar, text, text_input, Id, Text,
     },
-    Element, Task,
+    Apply, Element, Task,
 };
 use icu::locale::Locale;
 use std::{
+    ops::Deref,
     sync::LazyLock,
     time::{Duration, SystemTime},
 };
@@ -48,8 +51,26 @@ fn get_system_locale() -> Locale {
     Locale::try_from_str("en-US").expect("Failed to parse fallback locale 'en-US'")
 }
 
+pub struct Project {
+    id: String,
+    name: String,
+}
+pub struct Tag {
+    id: String,
+    name: String,
+}
+pub struct TrackingEntry {
+    id: String,
+    duration: Duration,
+    start_time: DateTime<Local>, // !TODO Research what implications that using local will have
+    stop_time: DateTime<Local>,  // !TODO Research what implications that using local will have
+    project_id: String,
+    tag_ids: Vec<String>,
+}
+
 pub struct AppletModel {
     core: cosmic::Core,
+    tab_model: segmented_button::SingleSelectModel,
     popup: Option<window::Id>,
     popup_page: Page,
     timer_counter: SystemTime,
@@ -64,6 +85,7 @@ pub struct AppletModel {
 #[derive(Debug, Clone)]
 pub enum Message {
     TogglePopup,
+    TabChanged(Entity),
     ToggleTimer,
     ResetTimer,
     Tick,
@@ -72,6 +94,7 @@ pub enum Message {
     CloseRequested(window::Id),
 }
 
+#[derive(Debug, Clone)]
 pub enum Page {
     Timer,
     Log,
@@ -106,11 +129,9 @@ impl AppletModel {
         // .explain(cosmic::iced::Color::WHITE)
     }
 
-    fn task_text_changed(text: String) -> Message {
-        Message::ToggleTimer
-    }
-
     fn timer_page(&self) -> Element<'_, Message> {
+        let tab_bar = tab_bar::horizontal(&self.tab_model).on_activate(Message::TabChanged);
+
         let task_selector = text_input::text_input("Task", self.current_task.clone())
             .on_input(Message::TaskTextChanged);
 
@@ -134,11 +155,10 @@ impl AppletModel {
             .on_press(Message::ResetTimer)
             .class(cosmic::theme::Button::AppletIcon);
 
-        let popup_toggle_button = button::icon(icon::from_name("open-menu-symbolic"))
-            .on_press(Message::TogglePopup)
-            .class(cosmic::theme::Button::AppletIcon);
+        let tab_bar_element = Element::from(tab_bar);
 
         Element::from(column![
+            tab_bar_element,
             task_selector.width(Length::Fill),
             tag_selector.width(Length::Fill),
             row![timer, toggle_timer_button, reset_button]
@@ -165,6 +185,19 @@ impl cosmic::Application for AppletModel {
     }
 
     fn init(core: app::Core, _flags: Self::Flags) -> (Self, app::Task<self::Message>) {
+        let mut tab_model = segmented_button::SingleSelectModel::default();
+
+        tab_model
+            .insert()
+            .text("Timer")
+            .activate()
+            .data::<Page>(Page::Timer);
+        tab_model.insert().text("Log").data::<Page>(Page::Log);
+        tab_model
+            .insert()
+            .text("Settings")
+            .data::<Page>(Page::Settings);
+
         (
             Self {
                 core,
@@ -181,6 +214,7 @@ impl cosmic::Application for AppletModel {
                     "Programmering".to_string(),
                     "Teknologi".to_string(),
                 ],
+                tab_model,
             },
             Task::none(),
         )
@@ -265,6 +299,13 @@ impl cosmic::Application for AppletModel {
                 self.current_tag = Some(tag);
                 Task::none()
             }
+            Message::TabChanged(entity) => {
+                self.tab_model.activate(entity);
+                if let Some(page) = self.tab_model.data::<Page>(entity) {
+                    self.popup_page = page.clone();
+                }
+                Task::none()
+            }
         }
     }
     fn view(&self) -> cosmic::Element<'_, Self::Message> {
@@ -289,4 +330,13 @@ impl cosmic::Application for AppletModel {
     fn on_close_requested(&self, id: window::Id) -> Option<Self::Message> {
         Some(Message::CloseRequested(id))
     }
+
+    // fn nav_model(&self) -> Option<&cosmic::widget::nav_bar::Model> {
+    // Some(&self.nav)
+    // }
+
+    // fn on_nav_select(&mut self, id: cosmic::widget::nav_bar::Id) -> app::Task<Self::Message> {
+    // self.nav.activate(id);
+    // Task::none()
+    // }
 }
