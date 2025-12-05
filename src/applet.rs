@@ -9,7 +9,7 @@ use cosmic::{
         window, Length, Subscription,
     },
     iced_winit::commands::popup::{destroy_popup, get_popup},
-    theme,
+    task, theme,
     widget::{
         self, autosize, button, container, dropdown, icon, nav_bar,
         segmented_button::{self, Entity, StyleSheet},
@@ -24,6 +24,8 @@ use std::{
     time::{Duration, SystemTime},
 };
 use tokio::time;
+
+use crate::pages::{time_entries_page, timer_page};
 
 static AUTOSIZE_MAIN_ID: LazyLock<Id> = LazyLock::new(|| Id::new("autosize-main"));
 
@@ -51,23 +53,6 @@ fn get_system_locale() -> Locale {
     Locale::try_from_str("en-US").expect("Failed to parse fallback locale 'en-US'")
 }
 
-pub struct Project {
-    id: String,
-    name: String,
-}
-pub struct Tag {
-    id: String,
-    name: String,
-}
-pub struct TrackingEntry {
-    id: String,
-    duration: Duration,
-    start_time: DateTime<Local>, // !TODO Research what implications that using local will have
-    stop_time: DateTime<Local>,  // !TODO Research what implications that using local will have
-    project_id: String,
-    tag_ids: Vec<String>,
-}
-
 pub struct AppletModel {
     core: cosmic::Core,
     tab_model: segmented_button::SingleSelectModel,
@@ -77,9 +62,8 @@ pub struct AppletModel {
     timer_running: bool,
     timer_duration: Duration,
     locale: Locale,
-    current_task: String,
-    current_tag: Option<usize>,
-    tag_selections: Vec<String>,
+    timer_page: timer_page::TimerPage,
+    time_entries_page: time_entries_page::TimeEntriesPage,
 }
 
 #[derive(Debug, Clone)]
@@ -89,9 +73,9 @@ pub enum Message {
     ToggleTimer,
     ResetTimer,
     Tick,
-    TaskTextChanged(String),
-    TagChanged(usize),
     CloseRequested(window::Id),
+    TimerPage(timer_page::Message),
+    TimeEntriesPage(time_entries_page::Message),
 }
 
 #[derive(Debug, Clone)]
@@ -99,6 +83,18 @@ pub enum Page {
     Timer,
     Log,
     Settings,
+}
+
+impl From<timer_page::Message> for Message {
+    fn from(message: timer_page::Message) -> Self {
+        Self::TimerPage(message)
+    }
+}
+
+impl From<time_entries_page::Message> for Message {
+    fn from(message: time_entries_page::Message) -> Self {
+        Self::TimeEntriesPage(message)
+    }
 }
 
 fn format_duration(duration: &Duration) -> String {
@@ -128,44 +124,8 @@ impl AppletModel {
         )
         // .explain(cosmic::iced::Color::WHITE)
     }
-
-    fn timer_page(&self) -> Element<'_, Message> {
-        let tab_bar = tab_bar::horizontal(&self.tab_model).on_activate(Message::TabChanged);
-
-        let task_selector = text_input::text_input("Task", self.current_task.clone())
-            .on_input(Message::TaskTextChanged);
-
-        let tag_selector = dropdown::dropdown(
-            self.tag_selections.clone(),
-            self.current_tag,
-            Message::TagChanged,
-        );
-
-        let timer = text::text(format_duration(&self.timer_duration));
-
-        let toggle_timer_button = button::icon(if self.timer_running {
-            icon::from_name("media-playback-stop-symbolic")
-        } else {
-            icon::from_name("media-playback-start-symbolic")
-        })
-        .on_press(Message::ToggleTimer)
-        .class(cosmic::theme::Button::AppletIcon);
-
-        let reset_button = button::icon(icon::from_name("object-rotate-left-symbolic"))
-            .on_press(Message::ResetTimer)
-            .class(cosmic::theme::Button::AppletIcon);
-
-        let tab_bar_element = Element::from(tab_bar);
-
-        Element::from(column![
-            tab_bar_element,
-            task_selector.width(Length::Fill),
-            tag_selector.width(Length::Fill),
-            row![timer, toggle_timer_button, reset_button]
-        ])
-        // .explain(cosmic::iced::Color::WHITE)
-    }
 }
+
 impl cosmic::Application for AppletModel {
     type Executor = cosmic::executor::Default;
     type Flags = ();
@@ -207,14 +167,9 @@ impl cosmic::Application for AppletModel {
                 timer_duration: Duration::new(0, 0),
                 locale: get_system_locale(),
                 popup_page: Page::Timer,
-                current_task: String::new(),
-                current_tag: None,
-                tag_selections: vec![
-                    "Systemudvikling".to_string(),
-                    "Programmering".to_string(),
-                    "Teknologi".to_string(),
-                ],
                 tab_model,
+                timer_page: timer_page::TimerPage::new(),
+                time_entries_page: time_entries_page::TimeEntriesPage::new(),
             },
             Task::none(),
         )
@@ -244,29 +199,6 @@ impl cosmic::Application for AppletModel {
 
     fn update(&mut self, message: Self::Message) -> app::Task<Self::Message> {
         match message {
-            Message::ToggleTimer => {
-                if self.timer_running {
-                    self.timer_running = false;
-                } else {
-                    self.timer_running = true;
-                    self.timer_counter = SystemTime::now()
-                }
-                Task::none()
-            }
-            Message::Tick => {
-                if self.timer_running {
-                    if let Ok(elapsed) = self.timer_counter.elapsed() {
-                        self.timer_duration += elapsed
-                    }
-                    self.timer_counter = SystemTime::now();
-                }
-                Task::none()
-            }
-            Message::ResetTimer => {
-                self.timer_duration = Duration::new(0, 0);
-                self.timer_counter = SystemTime::now();
-                Task::none()
-            }
             Message::TogglePopup => {
                 if let Some(p) = self.popup.take() {
                     destroy_popup(p)
@@ -285,24 +217,48 @@ impl cosmic::Application for AppletModel {
                     get_popup(popup_settings)
                 }
             }
-            Message::CloseRequested(id) => {
-                if (Some(id)) == self.popup {
-                    self.popup = None;
-                }
-                Task::none()
-            }
-            Message::TaskTextChanged(task) => {
-                self.current_task = task;
-                Task::none()
-            }
-            Message::TagChanged(tag) => {
-                self.current_tag = Some(tag);
-                Task::none()
-            }
             Message::TabChanged(entity) => {
                 self.tab_model.activate(entity);
                 if let Some(page) = self.tab_model.data::<Page>(entity) {
                     self.popup_page = page.clone();
+                }
+                Task::none()
+            }
+            Message::ToggleTimer => {
+                if self.timer_running {
+                    self.timer_running = false;
+                } else {
+                    self.timer_running = true;
+                    self.timer_counter = SystemTime::now()
+                }
+                Task::none()
+            }
+            Message::ResetTimer => {
+                self.timer_duration = Duration::new(0, 0);
+                self.timer_counter = SystemTime::now();
+                Task::none()
+            }
+            Message::Tick => {
+                if self.timer_running {
+                    if let Ok(elapsed) = self.timer_counter.elapsed() {
+                        self.timer_duration += elapsed
+                    }
+                    self.timer_counter = SystemTime::now();
+                }
+                Task::none()
+            }
+            Message::TimerPage(message) => {
+                self.timer_page.update(message.into());
+                task::none()
+            }
+
+            Message::TimeEntriesPage(message) => {
+                self.time_entries_page.update(message.into());
+                task::none()
+            }
+            Message::CloseRequested(id) => {
+                if (Some(id)) == self.popup {
+                    self.popup = None;
                 }
                 Task::none()
             }
@@ -315,13 +271,17 @@ impl cosmic::Application for AppletModel {
     fn view_window(&self, id: window::Id) -> Element<'_, Self::Message> {
         let Spacing { .. } = theme::active().cosmic().spacing;
         let content = match self.popup_page {
-            Page::Timer => self.timer_page(),
-            Page::Log => todo!(),
+            Page::Timer => self.timer_page.view().map(Message::TimerPage),
+            Page::Log => self.time_entries_page.view().map(Message::TimeEntriesPage),
             Page::Settings => todo!(),
         };
+
+        let tab_bar = tab_bar::horizontal(&self.tab_model).on_activate(Message::TabChanged);
+        let tab_bar_element = Element::from(tab_bar);
+
         self.core
             .applet
-            .popup_container(container(content))
+            .popup_container(container(column![tab_bar_element, content]))
             .min_height(200.) // !HACK Fix for dropdown getting cut off
             .min_width(200.) // !HACK Fix for dropdown getting cut off
             .into()
@@ -330,13 +290,4 @@ impl cosmic::Application for AppletModel {
     fn on_close_requested(&self, id: window::Id) -> Option<Self::Message> {
         Some(Message::CloseRequested(id))
     }
-
-    // fn nav_model(&self) -> Option<&cosmic::widget::nav_bar::Model> {
-    // Some(&self.nav)
-    // }
-
-    // fn on_nav_select(&mut self, id: cosmic::widget::nav_bar::Id) -> app::Task<Self::Message> {
-    // self.nav.activate(id);
-    // Task::none()
-    // }
 }
