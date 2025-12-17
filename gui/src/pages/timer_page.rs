@@ -1,3 +1,11 @@
+use std::{
+    rc::Rc,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+};
+
 use cosmic::{
     app,
     iced::{
@@ -8,16 +16,25 @@ use cosmic::{
     Element, Task,
 };
 
+use crate::applet;
+
 pub struct TimerPage {
     current_task: String,
     current_tag: Option<usize>,
     project_selections: Vec<String>,
+    timer_running: Arc<AtomicBool>,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
     TaskTextChanged(String),
     TagChanged(usize),
+}
+
+impl From<Message> for applet::Message {
+    fn from(message: Message) -> Self {
+        applet::Message::TimerPage(message)
+    }
 }
 
 impl TimerPage {
@@ -33,13 +50,13 @@ impl TimerPage {
 
         // let timer = text::text(format_duration(&self.timer_duration));
 
-        // let toggle_timer_button = button::icon(if self.timer_running {
-        // icon::from_name("media-playback-stop-symbolic")
-        // } else {
-        // icon::from_name("media-playback-start-symbolic")
-        // })
+        let toggle_timer_button = button::icon(if self.timer_running.load(Ordering::Relaxed) {
+            icon::from_name("media-playback-stop-symbolic")
+        } else {
+            icon::from_name("media-playback-start-symbolic")
+        })
         // .on_press(Message::ToggleTimer)
-        // .class(cosmic::theme::Button::AppletIcon);
+        .class(cosmic::theme::Button::AppletIcon);
 
         let reset_button = button::icon(icon::from_name("object-rotate-left-symbolic"))
             // .on_press(Message::ResetTimer)
@@ -48,7 +65,7 @@ impl TimerPage {
         Element::from(column![
             task_selector.width(Length::Fill),
             project_selector.width(Length::Fill),
-            row![reset_button]
+            row![toggle_timer_button, reset_button]
         ])
         // .explain(cosmic::iced::Color::WHITE)
     }
@@ -65,7 +82,7 @@ impl TimerPage {
             }
         }
     }
-    pub fn new() -> Self {
+    pub fn new(timer_running: Arc<AtomicBool>) -> Self {
         TimerPage {
             current_task: "".to_string(),
             current_tag: None,
@@ -74,6 +91,7 @@ impl TimerPage {
                 "Programmering".to_string(),
                 "Teknologi".to_string(),
             ],
+            timer_running,
         }
     }
 }

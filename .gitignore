@@ -15,3 +15,4 @@ debian/*
 
 .direnv
 .env
+config.toml

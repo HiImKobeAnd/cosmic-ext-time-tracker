@@ -20,7 +20,10 @@ use cosmic::{
 use icu::locale::Locale;
 use std::{
     ops::Deref,
-    sync::LazyLock,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, LazyLock,
+    },
     time::{Duration, SystemTime},
 };
 use tokio::time;
@@ -59,7 +62,7 @@ pub struct AppletModel {
     popup: Option<window::Id>,
     popup_page: Page,
     timer_counter: SystemTime,
-    timer_running: bool,
+    timer_running: Arc<AtomicBool>,
     timer_duration: Duration,
     locale: Locale,
     timer_page: timer_page::TimerPage,
@@ -78,23 +81,17 @@ pub enum Message {
     TimeEntriesPage(time_entries_page::Message),
 }
 
+impl From<time_entries_page::Message> for Message {
+    fn from(message: time_entries_page::Message) -> Self {
+        Message::TimeEntriesPage(message)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Page {
     Timer,
     Log,
     Settings,
-}
-
-impl From<timer_page::Message> for Message {
-    fn from(message: timer_page::Message) -> Self {
-        Self::TimerPage(message)
-    }
-}
-
-impl From<time_entries_page::Message> for Message {
-    fn from(message: time_entries_page::Message) -> Self {
-        Self::TimeEntriesPage(message)
-    }
 }
 
 fn format_duration(duration: &Duration) -> String {
@@ -118,9 +115,8 @@ impl AppletModel {
             .on_press(Message::TogglePopup)
             .class(cosmic::theme::Button::AppletIcon);
         Element::from(
-            row!(counter, popup_toggle_button,)
-                // .align_y(Alignment::Center)
-                .padding([0, self.core.applet.suggested_padding(true)]),
+            row!(counter, popup_toggle_button,), // .align_y(Alignment::Center)
+                                                 // .padding([0, self.core.applet.suggested_padding(true)]),
         )
         // .explain(cosmic::iced::Color::WHITE)
     }
@@ -158,17 +154,19 @@ impl cosmic::Application for AppletModel {
             .text("Settings")
             .data::<Page>(Page::Settings);
 
+        let timer_running = Arc::new(AtomicBool::new(true));
+
         (
             Self {
                 core,
                 popup: None,
                 timer_counter: SystemTime::now(),
-                timer_running: true,
+                timer_running: Arc::clone(&timer_running),
                 timer_duration: Duration::new(0, 0),
                 locale: get_system_locale(),
                 popup_page: Page::Timer,
                 tab_model,
-                timer_page: timer_page::TimerPage::new(),
+                timer_page: timer_page::TimerPage::new(Arc::clone(&timer_running)),
                 time_entries_page: time_entries_page::TimeEntriesPage::new(),
             },
             Task::none(),
@@ -225,10 +223,10 @@ impl cosmic::Application for AppletModel {
                 Task::none()
             }
             Message::ToggleTimer => {
-                if self.timer_running {
-                    self.timer_running = false;
+                if self.timer_running.load(Ordering::Relaxed) {
+                    self.timer_running.store(false, Ordering::Relaxed);
                 } else {
-                    self.timer_running = true;
+                    self.timer_running.store(true, Ordering::Relaxed);
                     self.timer_counter = SystemTime::now()
                 }
                 Task::none()
@@ -239,7 +237,7 @@ impl cosmic::Application for AppletModel {
                 Task::none()
             }
             Message::Tick => {
-                if self.timer_running {
+                if self.timer_running.load(Ordering::Relaxed) {
                     if let Ok(elapsed) = self.timer_counter.elapsed() {
                         self.timer_duration += elapsed
                     }
@@ -248,13 +246,26 @@ impl cosmic::Application for AppletModel {
                 Task::none()
             }
             Message::TimerPage(message) => {
-                self.timer_page.update(message.into());
-                task::none()
+                self.timer_page.update(message).map(|action| match action {
+                    cosmic::Action::None => cosmic::Action::None,
+                    cosmic::Action::App(m) => cosmic::Action::App(m.into()),
+                    cosmic::Action::Cosmic(a) => cosmic::Action::Cosmic(a),
+                    cosmic::Action::DbusActivation(message) => {
+                        cosmic::Action::DbusActivation(message)
+                    }
+                })
             }
-
             Message::TimeEntriesPage(message) => {
-                self.time_entries_page.update(message.into());
-                task::none()
+                self.time_entries_page
+                    .update(message)
+                    .map(|action| match action {
+                        cosmic::Action::None => cosmic::Action::None,
+                        cosmic::Action::App(m) => cosmic::Action::App(m.into()),
+                        cosmic::Action::Cosmic(a) => cosmic::Action::Cosmic(a),
+                        cosmic::Action::DbusActivation(message) => {
+                            cosmic::Action::DbusActivation(message)
+                        }
+                    })
             }
             Message::CloseRequested(id) => {
                 if (Some(id)) == self.popup {
