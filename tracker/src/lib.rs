@@ -1,14 +1,10 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
+mod models;
+use models;
+use reqwest::Client;
+
+pub fn get_current_time_entry() -> Option<TimeEntry> {
+    let client = Client::new().
+    let resp = reqwest::get("https://api.track.toggl.com/api/v9/me/time_entries/current")
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}

@@ -3,7 +3,6 @@
 mod applet;
 mod config;
 mod i18n;
-mod models;
 mod pages;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");

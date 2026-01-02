@@ -8,10 +8,8 @@ use cosmic::{
     Element, Task,
 };
 
-use crate::models::TimeEntry;
-
 pub struct TimeEntriesPage {
-    time_entries: Vec<TimeEntry>,
+    time_entries: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
