@@ -4,7 +4,6 @@ mod applet;
 mod config;
 mod i18n;
 mod pages;
-mod toggl_integration;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 

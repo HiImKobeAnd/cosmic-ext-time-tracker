@@ -15,7 +15,7 @@ i18n-embed-fl = "0.9.2"
 open = "5.3.0"
 rust-embed = "8.5.0"
 tokio = { workspace = true }
-chrono = {version ="0.4.42", features = ["clock"]}
+chrono = { workspace = true, features = ["clock"] }
 icu = "2.0.0"
 tracing-log.workspace = true
 tracing-subscriber.workspace = true
@@ -46,6 +46,7 @@ features = [
     # GPU-accelerated rendering
     # "wgpu",
     "applet",
+    "process"
 ]
 
 # Uncomment to test a locally-cloned libcosmic
