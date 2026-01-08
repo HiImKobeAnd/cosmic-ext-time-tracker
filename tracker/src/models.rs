@@ -1,18 +1,61 @@
-use chrono::{DateTime, Duration, Local};
+// SPDX-License-Identifier: MPL-2.0
 
+use core::fmt;
+
+use chrono::{DateTime, Duration, Local, Utc};
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(untagged)]
+pub enum ApiId {
+    Int(i64),
+    String(String),
+}
+
+impl fmt::Display for ApiId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ApiId::Int(id) => write!(f, "{}", id),
+            ApiId::String(id) => write!(f, "{}", id),
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct Project {
-    id: String,
-    name: String,
+    pub id: ApiId,
+    pub name: String,
+    pub modified_at: DateTime<Utc>,
+    pub workspace_id: ApiId,
+    pub color: String,
 }
+
+#[derive(Debug)]
+pub struct Workspace {
+    pub id: ApiId,
+    pub name: String,
+    pub modified_at: DateTime<Utc>,
+    pub active_project_count: i64,
+}
+
+#[derive(Debug)]
 pub struct Tag {
-    id: String,
-    name: String,
+    pub id: ApiId,
+    pub name: String,
+    pub modified_at: DateTime<Utc>,
+    pub workspace_id: ApiId,
 }
+
+#[derive(Debug)]
 pub struct TimeEntry {
-    id: String,
-    duration: Duration,
-    start_time: DateTime<Local>, // !TODO Research what implications that using local will have
-    stop_time: DateTime<Local>,  // !TODO Research what implications that using local will have
-    project_id: String,
-    tag_ids: Vec<String>,
+    pub source_api: String,
+    pub id: ApiId,
+    pub billable: bool,
+    pub description: String,
+    pub duration: Duration,
+    pub start_time: DateTime<Utc>, // !TODO Research what implications that using UTC will have
+    pub stop_time: Option<DateTime<Utc>>, // !TODO Research what implications that using UTC will have
+    pub project_id: Option<ApiId>,
+    pub workspace_id: ApiId,
+    pub tag_ids: Vec<ApiId>,
 }

@@ -1,19 +1,11 @@
+// SPDX-License-Identifier: MPL-2.0
+
+extern crate serde_json;
+
+mod authentication;
 mod models;
-use keyring::{Entry, mock};
-use reqwest::{Client, Method};
+mod toggl_integration;
 
-use crate::models::TimeEntry;
-
-pub fn get_current_time_entry() -> Option<TimeEntry> {
-    let client = Client::new();
-    let resp = client.request(
-        Method::GET,
-        "https://api.track.toggl.com/api/v9/me/time_entries/current",
-    );
-    None
-}
-
-pub fn set_api_key(key: String) {
-    let entry = Entry::new("cosmic-ext-time-tracker", "toggl-api-key");
-    // entry.set_secret();
-}
+pub use authentication::*;
+pub use models::*;
+pub use toggl_integration::*;

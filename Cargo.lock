@@ -830,6 +830,7 @@ dependencies = [
  "iana-time-zone",
  "js-sys",
  "num-traits",
+ "serde",
  "wasm-bindgen",
  "windows-link",
 ]
@@ -6229,7 +6230,12 @@ dependencies = [
  "chrono",
  "keyring",
  "reqwest",
+ "serde",
+ "serde_json",
  "tokio",
+ "tracing",
+ "tracing-log",
+ "tracing-subscriber",
 ]
 
 [[package]]
