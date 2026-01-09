@@ -1096,6 +1096,7 @@ dependencies = [
  "tracing",
  "tracing-log",
  "tracing-subscriber",
+ "tracker-integrations",
  "vergen",
 ]
 
@@ -6224,7 +6225,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "tracker"
+name = "tracker-integrations"
 version = "0.1.0"
 dependencies = [
  "chrono",
