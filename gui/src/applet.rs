@@ -1,4 +1,4 @@
-use chrono::{DateTime, Local};
+use chrono::{DateTime, Local, Utc};
 use cosmic::{
     app,
     cosmic_theme::Spacing,
@@ -159,6 +159,8 @@ impl cosmic::Application for AppletModel {
 
         let timer_running = Arc::new(AtomicBool::new(true));
 
+        let startup_task = cosmic::task::message(Self::Message::GetExistingTracker);
+
         (
             Self {
                 core,
@@ -172,7 +174,7 @@ impl cosmic::Application for AppletModel {
                 timer_page: timer_page::TimerPage::new(Arc::clone(&timer_running)),
                 time_entries_page: time_entries_page::TimeEntriesPage::new(),
             },
-            Task::none(),
+            startup_task,
         )
     }
 
@@ -276,19 +278,27 @@ impl cosmic::Application for AppletModel {
                 }
                 Task::none()
             }
-            Message::GetExistingTracker => cosmic::task::future(async {
-                Message::ExistingTrackerGotten(
-                    tokio::spawn({
-                        let client = TogglClient::new();
-                        let current_time_entry = client.get_current_time_entry().await;
-                    })
-                    .await,
-                )
+            Message::GetExistingTracker => cosmic::task::future(async move {
+                let client = TogglClient::new();
+                let time_entry = client.get_current_time_entry().await;
+                match time_entry {
+                    Ok(entry) => Message::ExistingTrackerGotten(Some(entry)),
+                    Err(_) => Message::ExistingTrackerGotten(None),
+                }
             }),
-            Message::ExistingTrackerGotten(entry) => match entry {
-                Some(_) => todo!(),
-                None => todo!(),
-            },
+            Message::ExistingTrackerGotten(time_entry) => {
+                match time_entry {
+                    Some(entry) => {
+                        self.timer_running.store(true, Ordering::Relaxed);
+                        self.timer_duration = Utc::now()
+                            .signed_duration_since(entry.start_time)
+                            .to_std()
+                            .expect("Failed to convert from TimeDelta to Duration")
+                    }
+                    None => (),
+                }
+                Task::none()
+            }
         }
     }
     fn view(&self) -> cosmic::Element<'_, Self::Message> {

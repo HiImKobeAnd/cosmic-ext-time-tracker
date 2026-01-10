@@ -24,6 +24,7 @@
           bacon
           just
           libcosmicAppHook
+          dbus
         ];
       in
       {
