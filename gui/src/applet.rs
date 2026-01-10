@@ -1,4 +1,4 @@
-use chrono::{DateTime, Local, TimeDelta, Utc};
+use chrono::{TimeDelta, Utc};
 use cosmic::{
     app,
     cosmic_theme::Spacing,
@@ -6,25 +6,21 @@ use cosmic::{
         futures::SinkExt,
         stream,
         widget::{column, row},
-        window, Length, Subscription,
+        window, Subscription,
     },
     iced_winit::commands::popup::{destroy_popup, get_popup},
     task, theme,
     widget::{
-        self, autosize, button, container, dropdown, icon, nav_bar,
-        segmented_button::{self, Entity, StyleSheet},
-        tab_bar, text, text_input, Id, Text,
+        autosize, button, container, icon,
+        segmented_button::{self, Entity},
+        tab_bar, Id, Text,
     },
-    Apply, Element, Task,
+    Element, Task,
 };
 use icu::locale::Locale;
-use std::{
-    ops::Deref,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc, LazyLock,
-    },
-    time::{Duration, SystemTime},
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, LazyLock,
 };
 use tokio::time;
 use tracker_integrations::{TimeEntry, TogglClient};
@@ -97,38 +93,32 @@ pub enum Page {
     Settings,
 }
 
-fn format_duration(duration: &Duration) -> String {
-    let total_seconds = duration.as_secs();
-    let hours = total_seconds / 3600;
-    let minutes = (total_seconds % 3600) / 60;
-    let seconds = total_seconds % 60;
-
-    match (hours, minutes, seconds) {
-        (h, m, s) if h > 0 => format!("{h}:{m:02}:{s:02}"),
-        _ => format!("{minutes:02}:{seconds:02}"),
+fn format_duration(duration: &TimeDelta) -> String {
+    if duration.num_hours() > 0 {
+        return format!(
+            "{}:{:02}:{:02}",
+            duration.num_hours(),
+            duration.num_minutes() % 60,
+            duration.num_seconds() % 60
+        );
+    } else {
+        return format!(
+            "{:02}:{:02}",
+            duration.num_minutes() % 60,
+            duration.num_seconds() % 60
+        );
     }
 }
 
 impl AppletModel {
     fn horizontal_layout(&self) -> Element<'_, Message> {
-        let counter;
-        match &self.time_entry {
-            Some(entry) => {
-                counter = button::custom(Text::new(format_duration(
-                    &Utc::now()
-                        .signed_duration_since(entry.start_time)
-                        .to_std()
-                        .expect("Could not convert TimeDelta to duration."),
-                )))
-                .on_press(Message::StopTimer)
-                .class(cosmic::theme::Button::AppletIcon)
-            }
-            None => {
-                counter = button::custom(Text::new("00:00:00"))
-                    .on_press(Message::StartTimer)
-                    .class(cosmic::theme::Button::AppletIcon)
-            }
-        }
+        let duration = match &self.time_entry {
+            Some(entry) => Utc::now().signed_duration_since(entry.start_time),
+            None => TimeDelta::zero(),
+        };
+        let counter = button::custom(Text::new(format_duration(&duration)))
+            .on_press(Message::StartTimer)
+            .class(cosmic::theme::Button::AppletIcon);
         let popup_toggle_button = button::icon(icon::from_name("open-menu-symbolic"))
             .on_press(Message::TogglePopup)
             .class(cosmic::theme::Button::AppletIcon);
