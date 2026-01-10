@@ -21,24 +21,17 @@ async fn main() {
     // tracing::info!("Staring time tracker applet with version {VERSION}");
 
     ensure_api_key().expect("Could not ensure API key.");
-    let client = TogglClient::new();
-    let time_entry = client
-        .get_current_time_entry()
+    let time_entry = TogglClient::get_current_time_entry()
         .await
         .expect("Failed to get current time entry.");
     dbg!(time_entry);
-    let client = TogglClient::new();
-    let workspaces = client
-        .get_user_workspaces()
+    let workspaces = TogglClient::get_user_workspaces()
         .await
         .expect("Failed to get workspaces.");
     dbg!(&workspaces);
-    let client = TogglClient::new();
-
     match workspaces.first() {
         Some(workspace) => {
-            let projects = client
-                .get_workspace_projects(workspace.id.clone())
+            let projects = TogglClient::get_workspace_projects(workspace.id.clone())
                 .await
                 .expect("Failed to get workspace projects.");
             dbg!(projects);

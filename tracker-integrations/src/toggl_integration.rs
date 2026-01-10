@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
-use chrono::{DateTime, Duration, Local, Utc};
-use reqwest::{Client, Url, header::CONTENT_TYPE};
+use chrono::{DateTime, Duration, Utc};
+use reqwest::{Client, header::CONTENT_TYPE};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -10,12 +10,6 @@ use crate::{
 };
 
 pub struct TogglClient;
-
-impl TogglClient {
-    pub fn new() -> Self {
-        Self
-    }
-}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TogglProject {
@@ -107,7 +101,7 @@ impl From<TogglTimeEntry> for TimeEntry {
 }
 
 impl TogglClient {
-    pub async fn get_current_time_entry(self) -> Result<TimeEntry, reqwest::Error> {
+    pub async fn get_current_time_entry() -> Result<TimeEntry, reqwest::Error> {
         tracing::info!("Running get current time entry.");
         let client = Client::new();
         let api_key = get_api_key().unwrap();
@@ -124,7 +118,7 @@ impl TogglClient {
         Ok(resp.into())
     }
 
-    pub async fn get_user_workspaces(self) -> Result<Vec<Workspace>, reqwest::Error> {
+    pub async fn get_user_workspaces() -> Result<Vec<Workspace>, reqwest::Error> {
         tracing::info!("Running get user workspaces.");
         let client = Client::new();
         let api_key = get_api_key().unwrap();
@@ -142,7 +136,6 @@ impl TogglClient {
     }
 
     pub async fn get_workspace_projects(
-        self,
         workspace_id: ApiId,
     ) -> Result<Vec<Project>, reqwest::Error> {
         tracing::info!("Running get workspace projects.");
@@ -161,5 +154,40 @@ impl TogglClient {
             .await
             .expect("Failed to convert to JSON.");
         Ok(resp.into_iter().map(Into::into).collect())
+    }
+
+    pub async fn stop_time_entry(time_entry: &TimeEntry) -> Result<(), reqwest::Error> {
+        tracing::info!("Stopping running time entry.");
+        let client = Client::new();
+        let api_key = get_api_key().unwrap();
+        let resp = client
+            .patch(format!(
+                "https://api.track.toggl.com/api/v9/workspaces/{}/time_entries/{}/stop",
+                time_entry.workspace_id, time_entry.id
+            ))
+            .basic_auth(api_key, Some("api_token"))
+            .header(CONTENT_TYPE, "application/json")
+            .send()
+            .await
+            .expect("Failed to get response.");
+        Ok(())
+    }
+
+    pub async fn start_new_time_entry(workspace: Workspace) -> Result<(), reqwest::Error> {
+        tracing::info!("Stopping running time entry.");
+        let client = Client::new();
+        let api_key = get_api_key().unwrap();
+        let resp = client
+            .post(format!(
+                "https://api.track.toggl.com/api/v9/workspaces/{}/time_entries",
+                workspace.id
+            ))
+            .basic_auth(api_key, Some("api_token"))
+            .header(CONTENT_TYPE, "application/json")
+            .send()
+            .await
+            .expect("Failed to get response.");
+        dbg!(resp);
+        Ok(())
     }
 }

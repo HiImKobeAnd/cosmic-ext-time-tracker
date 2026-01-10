@@ -1,4 +1,4 @@
-use chrono::{DateTime, Local, Utc};
+use chrono::{DateTime, Local, TimeDelta, Utc};
 use cosmic::{
     app,
     cosmic_theme::Spacing,
@@ -61,11 +61,10 @@ pub struct AppletModel {
     core: cosmic::Core,
     tab_model: segmented_button::SingleSelectModel,
     popup: Option<window::Id>,
-    popup_page: Page,
-    timer_counter: SystemTime,
+    time_entry: Option<TimeEntry>,
     timer_running: Arc<AtomicBool>,
-    timer_duration: Duration,
     locale: Locale,
+    popup_page: Page,
     timer_page: timer_page::TimerPage,
     time_entries_page: time_entries_page::TimeEntriesPage,
 }
@@ -74,14 +73,15 @@ pub struct AppletModel {
 pub enum Message {
     TogglePopup,
     TabChanged(Entity),
-    ToggleTimer,
-    ResetTimer,
     Tick,
+    StartTimer,
+    StopTimer,
     CloseRequested(window::Id),
     TimerPage(timer_page::Message),
     TimeEntriesPage(time_entries_page::Message),
     GetExistingTracker,
     ExistingTrackerGotten(Option<TimeEntry>),
+    StoppedTimer,
 }
 
 impl From<time_entries_page::Message> for Message {
@@ -111,9 +111,24 @@ fn format_duration(duration: &Duration) -> String {
 
 impl AppletModel {
     fn horizontal_layout(&self) -> Element<'_, Message> {
-        let counter = button::custom(Text::new(format_duration(&self.timer_duration)))
-            .on_press(Message::ToggleTimer)
-            .class(cosmic::theme::Button::AppletIcon);
+        let counter;
+        match &self.time_entry {
+            Some(entry) => {
+                counter = button::custom(Text::new(format_duration(
+                    &Utc::now()
+                        .signed_duration_since(entry.start_time)
+                        .to_std()
+                        .expect("Could not convert TimeDelta to duration."),
+                )))
+                .on_press(Message::StopTimer)
+                .class(cosmic::theme::Button::AppletIcon)
+            }
+            None => {
+                counter = button::custom(Text::new("00:00:00"))
+                    .on_press(Message::StartTimer)
+                    .class(cosmic::theme::Button::AppletIcon)
+            }
+        }
         let popup_toggle_button = button::icon(icon::from_name("open-menu-symbolic"))
             .on_press(Message::TogglePopup)
             .class(cosmic::theme::Button::AppletIcon);
@@ -165,14 +180,13 @@ impl cosmic::Application for AppletModel {
             Self {
                 core,
                 popup: None,
-                timer_counter: SystemTime::now(),
                 timer_running: Arc::clone(&timer_running),
-                timer_duration: Duration::new(0, 0),
                 locale: get_system_locale(),
                 popup_page: Page::Timer,
                 tab_model,
                 timer_page: timer_page::TimerPage::new(Arc::clone(&timer_running)),
                 time_entries_page: time_entries_page::TimeEntriesPage::new(),
+                time_entry: None,
             },
             startup_task,
         )
@@ -227,29 +241,7 @@ impl cosmic::Application for AppletModel {
                 }
                 Task::none()
             }
-            Message::ToggleTimer => {
-                if self.timer_running.load(Ordering::Relaxed) {
-                    self.timer_running.store(false, Ordering::Relaxed);
-                } else {
-                    self.timer_running.store(true, Ordering::Relaxed);
-                    self.timer_counter = SystemTime::now()
-                }
-                Task::none()
-            }
-            Message::ResetTimer => {
-                self.timer_duration = Duration::new(0, 0);
-                self.timer_counter = SystemTime::now();
-                Task::none()
-            }
-            Message::Tick => {
-                if self.timer_running.load(Ordering::Relaxed) {
-                    if let Ok(elapsed) = self.timer_counter.elapsed() {
-                        self.timer_duration += elapsed
-                    }
-                    self.timer_counter = SystemTime::now();
-                }
-                Task::none()
-            }
+            Message::Tick => Task::none(),
             Message::TimerPage(message) => {
                 self.timer_page.update(message).map(|action| match action {
                     cosmic::Action::None => cosmic::Action::None,
@@ -279,8 +271,7 @@ impl cosmic::Application for AppletModel {
                 Task::none()
             }
             Message::GetExistingTracker => cosmic::task::future(async move {
-                let client = TogglClient::new();
-                let time_entry = client.get_current_time_entry().await;
+                let time_entry = TogglClient::get_current_time_entry().await;
                 match time_entry {
                     Ok(entry) => Message::ExistingTrackerGotten(Some(entry)),
                     Err(_) => Message::ExistingTrackerGotten(None),
@@ -289,14 +280,25 @@ impl cosmic::Application for AppletModel {
             Message::ExistingTrackerGotten(time_entry) => {
                 match time_entry {
                     Some(entry) => {
+                        self.time_entry = Some(entry.clone());
                         self.timer_running.store(true, Ordering::Relaxed);
-                        self.timer_duration = Utc::now()
-                            .signed_duration_since(entry.start_time)
-                            .to_std()
-                            .expect("Failed to convert from TimeDelta to Duration")
                     }
                     None => (),
                 }
+                Task::none()
+            }
+            Message::StartTimer => todo!(),
+            Message::StopTimer => {
+                if let Some(entry) = self.time_entry.clone() {
+                    return cosmic::task::future(async move {
+                        TogglClient::stop_time_entry(&entry).await;
+                        Message::StoppedTimer
+                    });
+                }
+                task::none()
+            }
+            Message::StoppedTimer => {
+                self.time_entry = None;
                 Task::none()
             }
         }
