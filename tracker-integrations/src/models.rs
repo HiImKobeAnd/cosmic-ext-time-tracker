@@ -21,7 +21,7 @@ impl fmt::Display for ApiId {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Project {
     pub id: ApiId,
     pub name: String,
@@ -30,7 +30,7 @@ pub struct Project {
     pub color: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Workspace {
     pub id: ApiId,
     pub name: String,
@@ -38,7 +38,7 @@ pub struct Workspace {
     pub active_project_count: i64,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Tag {
     pub id: ApiId,
     pub name: String,
@@ -46,7 +46,7 @@ pub struct Tag {
     pub workspace_id: ApiId,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TimeEntry {
     pub source_api: String,
     pub id: ApiId,

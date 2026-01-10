@@ -27,7 +27,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 use tokio::time;
-use tracker_integrations::TogglClient;
+use tracker_integrations::{TimeEntry, TogglClient};
 
 use crate::pages::{time_entries_page, timer_page};
 
@@ -80,6 +80,8 @@ pub enum Message {
     CloseRequested(window::Id),
     TimerPage(timer_page::Message),
     TimeEntriesPage(time_entries_page::Message),
+    GetExistingTracker,
+    ExistingTrackerGotten(Option<TimeEntry>),
 }
 
 impl From<time_entries_page::Message> for Message {
@@ -274,6 +276,19 @@ impl cosmic::Application for AppletModel {
                 }
                 Task::none()
             }
+            Message::GetExistingTracker => cosmic::task::future(async {
+                Message::ExistingTrackerGotten(
+                    tokio::spawn({
+                        let client = TogglClient::new();
+                        let current_time_entry = client.get_current_time_entry().await;
+                    })
+                    .await,
+                )
+            }),
+            Message::ExistingTrackerGotten(entry) => match entry {
+                Some(_) => todo!(),
+                None => todo!(),
+            },
         }
     }
     fn view(&self) -> cosmic::Element<'_, Self::Message> {
