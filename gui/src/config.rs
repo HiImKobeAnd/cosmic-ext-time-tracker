@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: MPL-2.0
 
-use std::sync::{Arc, Mutex};
 
 use cosmic::cosmic_config::{
-    self, cosmic_config_derive::CosmicConfigEntry, Config, CosmicConfigEntry,
+    self, cosmic_config_derive::CosmicConfigEntry, CosmicConfigEntry,
 };
 use tracker_integrations::{Project, Tag, TimeEntry, Workspace};
 

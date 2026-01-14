@@ -1,17 +1,15 @@
 use chrono::{TimeDelta, Utc};
 use cosmic::{
     app,
-    cosmic_config::{self, ConfigState, CosmicConfigEntry},
+    cosmic_config::CosmicConfigEntry,
     cosmic_theme::Spacing,
     iced::{
-        self,
         futures::SinkExt,
         stream,
         widget::{column, row},
         window, Subscription,
     },
-    iced_winit::commands::popup::{destroy_popup, get_popup},
-    task, theme,
+    iced_winit::commands::popup::{destroy_popup, get_popup}, theme,
     widget::{
         autosize, button, container, icon,
         segmented_button::{self, Entity},
@@ -21,11 +19,11 @@ use cosmic::{
 };
 use icu::locale::Locale;
 use std::sync::{
-    atomic::{AtomicBool, Ordering},
+    atomic::AtomicBool,
     Arc, LazyLock,
 };
 use tokio::time;
-use tracker_integrations::{ApiId, Project, TimeEntry, TogglClient, Workspace};
+use tracker_integrations::{Project, TimeEntry, TogglClient, Workspace};
 
 use crate::{
     config::{GlobalState, GLOBAL_STATE_VERSION},
@@ -109,18 +107,18 @@ pub enum Page {
 
 fn format_duration(duration: &TimeDelta) -> String {
     if duration.num_hours() > 0 {
-        return format!(
+        format!(
             "{}:{:02}:{:02}",
             duration.num_hours(),
             duration.num_minutes() % 60,
             duration.num_seconds() % 60
-        );
+        )
     } else {
-        return format!(
+        format!(
             "{:02}:{:02}",
             duration.num_minutes() % 60,
             duration.num_seconds() % 60
-        );
+        )
     }
 }
 
@@ -204,7 +202,7 @@ impl cosmic::Application for AppletModel {
                 locale: get_system_locale(),
                 popup_page: Page::Timer,
                 tab_model,
-                timer_page: timer_page,
+                timer_page,
                 time_entries_page: time_entries_page::TimeEntriesPage::new(),
                 state,
                 state_handler,

@@ -1,14 +1,9 @@
-use std::{fs::File, process, time::Duration};
+use std::time::Duration;
 
 use cosmic::{
-    action, app,
-    iced::{
-        widget::{column, row},
-        window, Length,
-    },
-    task,
-    widget::{button, dropdown, icon, text, text_input},
-    Element, Task,
+    app,
+    iced::widget::column,
+    widget::{button, icon, text},
 };
 
 pub struct TimeEntriesPage {

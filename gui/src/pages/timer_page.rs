@@ -1,27 +1,16 @@
-use std::{
-    ops::Index,
-    rc::Rc,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
-};
 
 use cosmic::{
     app,
-    cosmic_config::CosmicConfigEntry,
     iced::{
-        widget::{column, row},
-        window, Length,
+        widget::{column, row}, Length,
     },
-    task,
-    widget::{button, dropdown, icon, text_input},
+    widget::{button, dropdown, icon},
     Element, Task,
 };
-use tracker_integrations::{ApiId, TimeEntry, TogglClient, Workspace};
+use tracker_integrations::{TogglClient, Workspace};
 
 use crate::{
-    applet::{self, AppletModel},
+    applet::{self},
     config::GlobalState,
 };
 
