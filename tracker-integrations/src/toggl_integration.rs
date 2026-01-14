@@ -179,35 +179,34 @@ impl TogglClient {
 
     pub async fn start_new_time_entry(
         workspace_id: ApiId,
+        project_id: Option<ApiId>,
     ) -> Result<Option<TimeEntry>, reqwest::Error> {
-        if let ApiId::Int(id) = workspace_id {
-            let body = json!({
-                "workspace_id": id,
-                "created_with": "cosmic-ext-time-tracker",
-                "duration": -1,
-                "start": Utc::now().to_rfc3339(),
-            });
+        let body = json!({
+            "workspace_id": workspace_id,
+            "project_id": project_id,
+            "created_with": "cosmic-ext-time-tracker",
+            "duration": -1,
+            "start": Utc::now().to_rfc3339(),
+        });
 
-            tracing::info!("Stopping running time entry.");
-            let client = Client::new();
-            let api_key = get_api_key().unwrap();
-            let resp: TogglTimeEntry = client
-                .post(format!(
-                    "https://api.track.toggl.com/api/v9/workspaces/{}/time_entries",
-                    id
-                ))
-                .basic_auth(api_key, Some("api_token"))
-                .header(CONTENT_TYPE, "application/json")
-                .json(&body)
-                .send()
-                .await
-                .expect("Failed to get response.")
-                .json()
-                .await
-                .expect("Failed to convert to JSON.");
-            return Ok(Some(resp.into()));
-        }
-        Ok(None)
+        tracing::info!("Stopping running time entry.");
+        let client = Client::new();
+        let api_key = get_api_key().unwrap();
+        let resp: TogglTimeEntry = client
+            .post(format!(
+                "https://api.track.toggl.com/api/v9/workspaces/{}/time_entries",
+                workspace_id
+            ))
+            .basic_auth(api_key, Some("api_token"))
+            .header(CONTENT_TYPE, "application/json")
+            .json(&body)
+            .send()
+            .await
+            .expect("Failed to get response.")
+            .json()
+            .await
+            .expect("Failed to convert to JSON.");
+        return Ok(Some(resp.into()));
     }
 
     pub async fn update_running_time_entry(time_entry: &TimeEntry) -> Result<(), reqwest::Error> {

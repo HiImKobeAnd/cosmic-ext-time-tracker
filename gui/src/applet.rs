@@ -9,7 +9,8 @@ use cosmic::{
         widget::{column, row},
         window, Subscription,
     },
-    iced_winit::commands::popup::{destroy_popup, get_popup}, theme,
+    iced_winit::commands::popup::{destroy_popup, get_popup},
+    theme,
     widget::{
         autosize, button, container, icon,
         segmented_button::{self, Entity},
@@ -18,10 +19,7 @@ use cosmic::{
     Element, Task,
 };
 use icu::locale::Locale;
-use std::sync::{
-    atomic::AtomicBool,
-    Arc, LazyLock,
-};
+use std::sync::{atomic::AtomicBool, Arc, LazyLock};
 use tokio::time;
 use tracker_integrations::{Project, TimeEntry, TogglClient, Workspace};
 
@@ -87,8 +85,6 @@ pub enum Message {
     TimerStarted(Option<TimeEntry>),
     StopTimer,
     TimerStopped,
-    GetProjectsForWorkspace(Workspace),
-    ProjectsGotten(Option<Vec<Project>>),
     StateChanged(GlobalState),
 }
 
@@ -310,9 +306,16 @@ impl cosmic::Application for AppletModel {
             Message::StartTimer => {
                 if let Some(selected_workspace) = &self.state.selected_workspace {
                     let selected_workspace_id = selected_workspace.id.clone();
+                    let mut selected_project_id = None;
+                    if let Some(selected_project) = &self.state.selected_project {
+                        selected_project_id = Some(selected_project.id.clone());
+                    };
                     return cosmic::task::future(async move {
-                        let time_entry =
-                            TogglClient::start_new_time_entry(selected_workspace_id).await;
+                        let time_entry = TogglClient::start_new_time_entry(
+                            selected_workspace_id,
+                            selected_project_id,
+                        )
+                        .await;
                         if let Ok(time_entry) = time_entry {
                             return Message::TimerStarted(time_entry);
                         }
@@ -341,14 +344,6 @@ impl cosmic::Application for AppletModel {
                 self.state.set_running_time_entry(&self.state_handler, None);
                 Task::none()
             }
-            Message::GetProjectsForWorkspace(workspace) => cosmic::task::future(async move {
-                let projects = TogglClient::get_workspace_projects(workspace.id).await;
-                match projects {
-                    Ok(projects) => Message::ProjectsGotten(Some(projects)),
-                    Err(_) => Message::ProjectsGotten(None),
-                }
-            }),
-            Message::ProjectsGotten(projects) => todo!(),
             Message::StateChanged(state) => {
                 tracing::info!("State changed.");
                 self.state = state.clone();
