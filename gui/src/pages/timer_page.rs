@@ -92,14 +92,15 @@ impl TimerPage {
             }),
             Message::WorkspacesGotten(workspaces) => {
                 if let Some(workspaces) = workspaces {
-                    self.state
+                    let _ = self
+                        .state
                         .set_workspaces(&self.state_handler, workspaces.clone());
                 }
                 Task::none()
             }
             Message::WorkspaceSelected(index) => {
                 self.current_workspace = Some(index);
-                self.state.set_selected_workspace(
+                let _ = self.state.set_selected_workspace(
                     &self.state_handler,
                     Some(self.state.workspaces[index].clone()),
                 );
@@ -109,7 +110,7 @@ impl TimerPage {
             }
             Message::ProjectSelected(index) => {
                 self.current_project = Some(index);
-                self.state.set_selected_project(
+                let _ = self.state.set_selected_project(
                     &self.state_handler,
                     Some(self.state.projects_for_selected_workspace[index].clone()),
                 );
@@ -124,7 +125,8 @@ impl TimerPage {
             }),
             Message::ProjectsGotten(projects) => {
                 if let Some(projects) = projects {
-                    self.state
+                    let _ = self
+                        .state
                         .set_projects_for_selected_workspace(&self.state_handler, projects.clone());
                 }
                 Task::none()

@@ -19,9 +19,9 @@ use cosmic::{
     Element, Task,
 };
 use icu::locale::Locale;
-use std::sync::{atomic::AtomicBool, Arc, LazyLock};
+use std::sync::LazyLock;
 use tokio::time;
-use tracker_integrations::{Project, TimeEntry, TogglClient, Workspace};
+use tracker_integrations::{TimeEntry, TogglClient};
 
 use crate::{
     config::{GlobalState, GLOBAL_STATE_VERSION},
@@ -174,8 +174,6 @@ impl cosmic::Application for AppletModel {
             .text("Settings")
             .data::<Page>(Page::Settings);
 
-        let timer_running = Arc::new(AtomicBool::new(true));
-
         let state_handler = cosmic::cosmic_config::Config::new(Self::APP_ID, GLOBAL_STATE_VERSION)
             .expect("Failed to init config.");
 
@@ -298,7 +296,8 @@ impl cosmic::Application for AppletModel {
             }),
             Message::ExistingTrackerGotten(time_entry) => {
                 if let Some(entry) = time_entry {
-                    self.state
+                    let _ = self
+                        .state
                         .set_running_time_entry(&self.state_handler, Some(entry));
                 }
                 Task::none()
@@ -326,7 +325,8 @@ impl cosmic::Application for AppletModel {
             }
             Message::TimerStarted(time_entry) => {
                 if let Some(entry) = time_entry {
-                    self.state
+                    let _ = self
+                        .state
                         .set_running_time_entry(&self.state_handler, Some(entry));
                 }
                 Task::none()
@@ -334,14 +334,14 @@ impl cosmic::Application for AppletModel {
             Message::StopTimer => {
                 if let Some(entry) = self.state.running_time_entry.clone() {
                     return cosmic::task::future(async move {
-                        TogglClient::stop_time_entry(&entry).await;
+                        let _ = TogglClient::stop_time_entry(&entry).await;
                         Message::TimerStopped
                     });
                 }
                 Task::none()
             }
             Message::TimerStopped => {
-                self.state.set_running_time_entry(&self.state_handler, None);
+                let _ = self.state.set_running_time_entry(&self.state_handler, None);
                 Task::none()
             }
             Message::StateChanged(state) => {

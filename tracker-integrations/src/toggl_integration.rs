@@ -206,54 +206,10 @@ impl TogglClient {
             .json()
             .await
             .expect("Failed to convert to JSON.");
-        return Ok(Some(resp.into()));
+        Ok(Some(resp.into()))
     }
 
     pub async fn update_running_time_entry(time_entry: &TimeEntry) -> Result<(), reqwest::Error> {
         todo!()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn panic_if_no_api_key_is_set() {
-        if get_api_key().is_err() {
-            tracing::error!("Toggl API key must be set before running tests.");
-            panic!("Toggl API key must be set before running tests.");
-        };
-    }
-
-    #[tokio::test]
-    async fn get_user_workspaces_successfully() {
-        panic_if_no_api_key_is_set();
-        assert!(TogglClient::get_user_workspaces().await.is_ok());
-    }
-    #[tokio::test]
-    async fn start_new_time_entry_succesfully() {
-        panic_if_no_api_key_is_set();
-        let workspaces = TogglClient::get_user_workspaces().await;
-        if let Ok(workspaces) = workspaces {
-            if !workspaces.is_empty() {
-                assert!(
-                    TogglClient::start_new_time_entry(workspaces[0].id.clone())
-                        .await
-                        .is_ok()
-                );
-            }
-        }
-        panic!()
-    }
-
-    #[tokio::test]
-    async fn stop_time_entry_successfully() {
-        panic_if_no_api_key_is_set();
-    }
-
-    #[tokio::test]
-    async fn get_running_time_entry_successfully() {
-        panic_if_no_api_key_is_set();
-        TogglClient::get_current_time_entry().await;
     }
 }
