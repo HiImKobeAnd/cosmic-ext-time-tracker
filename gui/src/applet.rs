@@ -295,11 +295,9 @@ impl cosmic::Application for AppletModel {
                 }
             }),
             Message::ExistingTrackerGotten(time_entry) => {
-                if let Some(entry) = time_entry {
-                    let _ = self
-                        .state
-                        .set_running_time_entry(&self.state_handler, Some(entry));
-                }
+                let _ = self
+                    .state
+                    .set_running_time_entry(&self.state_handler, time_entry);
                 Task::none()
             }
             Message::StartTimer => {
