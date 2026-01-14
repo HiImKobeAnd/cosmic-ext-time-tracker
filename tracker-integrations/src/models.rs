@@ -5,11 +5,17 @@ use core::fmt;
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 #[serde(untagged)]
 pub enum ApiId {
     Int(i64),
     String(String),
+}
+
+impl Default for ApiId {
+    fn default() -> Self {
+        Self::Int(0)
+    }
 }
 
 impl fmt::Display for ApiId {
@@ -21,7 +27,7 @@ impl fmt::Display for ApiId {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Default)]
 pub struct Project {
     pub id: ApiId,
     pub name: String,
@@ -30,7 +36,7 @@ pub struct Project {
     pub color: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Default)]
 pub struct Workspace {
     pub id: ApiId,
     pub name: String,
@@ -38,7 +44,7 @@ pub struct Workspace {
     pub active_project_count: i64,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Default)]
 pub struct Tag {
     pub id: ApiId,
     pub name: String,
@@ -46,12 +52,12 @@ pub struct Tag {
     pub workspace_id: ApiId,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Default)]
 pub struct TimeEntry {
     pub source_api: String,
     pub id: ApiId,
     pub billable: bool,
-    pub description: String,
+    pub description: Option<String>,
     pub duration: Duration,
     pub start_time: DateTime<Utc>, // !TODO Research what implications that using UTC will have
     pub stop_time: Option<DateTime<Utc>>, // !TODO Research what implications that using UTC will have

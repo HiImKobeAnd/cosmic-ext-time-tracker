@@ -12,23 +12,28 @@ use cosmic::{
         widget::{column, row},
         window, Length,
     },
+    task,
     widget::{button, dropdown, icon, text_input},
     Element, Task,
 };
+use tracker_integrations::{ApiId, TimeEntry, TogglClient, Workspace};
 
-use crate::applet;
+use crate::applet::{self, AppletModel};
 
 pub struct TimerPage {
     current_task: String,
-    current_tag: Option<usize>,
-    project_selections: Vec<String>,
     timer_running: Arc<AtomicBool>,
+    workspaces: Vec<Workspace>,
+    current_workspace: Option<usize>,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
     TaskTextChanged(String),
-    TagChanged(usize),
+    GetWorkspaces,
+    WorkspacesGotten(Option<Vec<Workspace>>),
+    WorkspaceSelected(usize),
+    NotifyWorkspaceChanged(ApiId),
 }
 
 impl From<Message> for applet::Message {
@@ -42,18 +47,18 @@ impl TimerPage {
         let task_selector = text_input::text_input("Task", self.current_task.clone())
             .on_input(Message::TaskTextChanged);
 
-        let project_selector = dropdown::dropdown(
-            self.project_selections.clone(),
-            self.current_tag,
-            Message::TagChanged,
+        let workspace_selector = dropdown::dropdown(
+            self.workspaces
+                .iter()
+                .map(|x| x.name.clone())
+                .collect::<Vec<String>>(),
+            self.current_workspace,
+            Message::WorkspaceSelected,
         );
 
-        // let timer = text::text(format_duration(&self.timer_duration));
-
-        let toggle_timer_button = button::icon(if self.timer_running.load(Ordering::Relaxed) {
-            icon::from_name("media-playback-stop-symbolic")
-        } else {
-            icon::from_name("media-playback-start-symbolic")
+        let toggle_timer_button = button::icon(match self.timer_running.load(Ordering::Relaxed) {
+            true => icon::from_name("media-playback-stop-symbolic"),
+            false => icon::from_name("media-playback-start-symbolic"),
         })
         // .on_press(Message::ToggleTimer)
         .class(cosmic::theme::Button::AppletIcon);
@@ -64,7 +69,7 @@ impl TimerPage {
 
         Element::from(column![
             task_selector.width(Length::Fill),
-            project_selector.width(Length::Fill),
+            workspace_selector.width(Length::Fill),
             row![toggle_timer_button, reset_button]
         ])
         // .explain(cosmic::iced::Color::WHITE)
@@ -76,22 +81,38 @@ impl TimerPage {
                 self.current_task = task;
                 Task::none()
             }
-            Message::TagChanged(tag) => {
-                self.current_tag = Some(tag);
+            Message::GetWorkspaces => cosmic::task::future(async move {
+                let workspaces = TogglClient::get_user_workspaces().await;
+                match workspaces {
+                    Ok(workspaces) => Message::WorkspacesGotten(Some(workspaces)),
+                    Err(_) => Message::WorkspacesGotten(None),
+                }
+            }),
+            Message::WorkspacesGotten(workspaces) => {
+                if let Some(workspaces) = workspaces {
+                    self.workspaces = workspaces
+                }
                 Task::none()
             }
+            Message::WorkspaceSelected(index) => {
+                self.current_workspace = Some(index);
+                let selected_workspace = self.workspaces[index].clone();
+                cosmic::task::message(Message::NotifyWorkspaceChanged(
+                    selected_workspace.id.clone(),
+                ))
+            }
+            Message::NotifyWorkspaceChanged(api_id) => Task::none(),
         }
     }
-    pub fn new(timer_running: Arc<AtomicBool>) -> Self {
-        TimerPage {
-            current_task: "".to_string(),
-            current_tag: None,
-            project_selections: vec![
-                "Systemudvikling".to_string(),
-                "Programmering".to_string(),
-                "Teknologi".to_string(),
-            ],
-            timer_running,
-        }
+    pub fn new(timer_running: Arc<AtomicBool>) -> (Self, Task<Message>) {
+        (
+            TimerPage {
+                current_task: "".to_string(),
+                timer_running,
+                current_workspace: None,
+                workspaces: Vec::new(),
+            },
+            Task::done(Message::GetWorkspaces),
+        )
     }
 }

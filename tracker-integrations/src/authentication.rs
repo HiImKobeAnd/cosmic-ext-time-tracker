@@ -12,5 +12,5 @@ pub fn set_api_key(key: String) -> Result<(), keyring::Error> {
 pub fn get_api_key() -> Result<String, keyring::Error> {
     let entry = Entry::new("cosmic-ext-time-tracker", "toggl-api-key")?;
     let key = entry.get_password()?;
-    return Ok(key);
+    Ok(key)
 }
