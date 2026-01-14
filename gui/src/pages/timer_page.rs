@@ -1,4 +1,5 @@
 use std::{
+    ops::Index,
     rc::Rc,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -8,6 +9,7 @@ use std::{
 
 use cosmic::{
     app,
+    cosmic_config::CosmicConfigEntry,
     iced::{
         widget::{column, row},
         window, Length,
@@ -18,22 +20,23 @@ use cosmic::{
 };
 use tracker_integrations::{ApiId, TimeEntry, TogglClient, Workspace};
 
-use crate::applet::{self, AppletModel};
+use crate::{
+    applet::{self, AppletModel},
+    config::GlobalState,
+};
 
 pub struct TimerPage {
-    current_task: String,
-    timer_running: Arc<AtomicBool>,
-    workspaces: Vec<Workspace>,
+    pub state: GlobalState,
+    state_handler: cosmic::cosmic_config::Config,
     current_workspace: Option<usize>,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    TaskTextChanged(String),
+    // TaskTextChanged(String),
     GetWorkspaces,
     WorkspacesGotten(Option<Vec<Workspace>>),
     WorkspaceSelected(usize),
-    NotifyWorkspaceChanged(ApiId),
 }
 
 impl From<Message> for applet::Message {
@@ -44,43 +47,43 @@ impl From<Message> for applet::Message {
 
 impl TimerPage {
     pub fn view(&self) -> cosmic::Element<'_, Message> {
-        let task_selector = text_input::text_input("Task", self.current_task.clone())
-            .on_input(Message::TaskTextChanged);
+        // let task_selector = text_input::text_input("Task", self.current_task.clone())
+        // .on_input(Message::TaskTextChanged);
 
         let workspace_selector = dropdown::dropdown(
-            self.workspaces
+            self.state
+                .workspaces
                 .iter()
                 .map(|x| x.name.clone())
                 .collect::<Vec<String>>(),
             self.current_workspace,
             Message::WorkspaceSelected,
         );
-
-        let toggle_timer_button = button::icon(match self.timer_running.load(Ordering::Relaxed) {
-            true => icon::from_name("media-playback-stop-symbolic"),
-            false => icon::from_name("media-playback-start-symbolic"),
-        })
+        // let toggle_timer_button = button::icon(match self.timer_running {
+        //     true => icon::from_name("media-playback-stop-symbolic"),
+        //     false => icon::from_name("media-playback-start-symbolic"),
+        // })
         // .on_press(Message::ToggleTimer)
-        .class(cosmic::theme::Button::AppletIcon);
+        // .class(cosmic::theme::Button::AppletIcon);
 
         let reset_button = button::icon(icon::from_name("object-rotate-left-symbolic"))
             // .on_press(Message::ResetTimer)
             .class(cosmic::theme::Button::AppletIcon);
 
         Element::from(column![
-            task_selector.width(Length::Fill),
+            // task_selector.width(Length::Fill),
             workspace_selector.width(Length::Fill),
-            row![toggle_timer_button, reset_button]
+            row![reset_button]
         ])
         // .explain(cosmic::iced::Color::WHITE)
     }
 
     pub fn update(&mut self, message: Message) -> app::Task<Message> {
         match message {
-            Message::TaskTextChanged(task) => {
-                self.current_task = task;
-                Task::none()
-            }
+            // Message::TaskTextChanged(task) => {
+            // self.current_task = task;
+            // Task::none()
+            // }
             Message::GetWorkspaces => cosmic::task::future(async move {
                 let workspaces = TogglClient::get_user_workspaces().await;
                 match workspaces {
@@ -90,27 +93,38 @@ impl TimerPage {
             }),
             Message::WorkspacesGotten(workspaces) => {
                 if let Some(workspaces) = workspaces {
-                    self.workspaces = workspaces
+                    self.state
+                        .set_workspaces(&self.state_handler, workspaces.clone());
                 }
                 Task::none()
             }
             Message::WorkspaceSelected(index) => {
                 self.current_workspace = Some(index);
-                let selected_workspace = self.workspaces[index].clone();
-                cosmic::task::message(Message::NotifyWorkspaceChanged(
-                    selected_workspace.id.clone(),
-                ))
+                self.state.set_selected_workspace(
+                    &self.state_handler,
+                    Some(self.state.workspaces[index].clone()),
+                );
+                Task::none()
             }
-            Message::NotifyWorkspaceChanged(api_id) => Task::none(),
         }
     }
-    pub fn new(timer_running: Arc<AtomicBool>) -> (Self, Task<Message>) {
+    pub fn new(
+        state: GlobalState,
+        state_handler: cosmic::cosmic_config::Config,
+    ) -> (Self, Task<Message>) {
+        let mut current_workspace = None;
+        if let Some(selected_workspace) = &state.selected_workspace {
+            current_workspace = state
+                .workspaces
+                .iter()
+                .position(|w| w.id == selected_workspace.id);
+        }
         (
             TimerPage {
-                current_task: "".to_string(),
-                timer_running,
-                current_workspace: None,
-                workspaces: Vec::new(),
+                state,
+                state_handler,
+                // current_task: "".to_string(),
+                current_workspace,
             },
             Task::done(Message::GetWorkspaces),
         )

@@ -1,6 +1,7 @@
 use chrono::{TimeDelta, Utc};
 use cosmic::{
     app,
+    cosmic_config::{self, ConfigState, CosmicConfigEntry},
     cosmic_theme::Spacing,
     iced::{
         self,
@@ -26,7 +27,10 @@ use std::sync::{
 use tokio::time;
 use tracker_integrations::{ApiId, Project, TimeEntry, TogglClient, Workspace};
 
-use crate::pages::{time_entries_page, timer_page};
+use crate::{
+    config::{GlobalState, GLOBAL_STATE_VERSION},
+    pages::{time_entries_page, timer_page},
+};
 
 static AUTOSIZE_MAIN_ID: LazyLock<Id> = LazyLock::new(|| Id::new("autosize-main"));
 
@@ -54,14 +58,18 @@ fn get_system_locale() -> Locale {
     Locale::try_from_str("en-US").expect("Failed to parse fallback locale 'en-US'")
 }
 
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+pub enum SubscriptionId {
+    StateWatch,
+}
+
 pub struct AppletModel {
     core: cosmic::Core,
+    state: GlobalState,
+    state_handler: cosmic::cosmic_config::Config,
+    locale: Locale,
     tab_model: segmented_button::SingleSelectModel,
     popup: Option<window::Id>,
-    selected_workspace_id: Option<ApiId>,
-    time_entry: Option<TimeEntry>,
-    timer_running: Arc<AtomicBool>,
-    locale: Locale,
     popup_page: Page,
     timer_page: timer_page::TimerPage,
     time_entries_page: time_entries_page::TimeEntriesPage,
@@ -83,7 +91,7 @@ pub enum Message {
     TimerStopped,
     GetProjectsForWorkspace(Workspace),
     ProjectsGotten(Option<Vec<Project>>),
-    // WorkspaceSelected(ApiId),
+    StateChanged(GlobalState),
 }
 
 impl From<time_entries_page::Message> for Message {
@@ -118,7 +126,7 @@ fn format_duration(duration: &TimeDelta) -> String {
 
 impl AppletModel {
     fn horizontal_layout(&self) -> Element<'_, Message> {
-        let counter = match &self.time_entry {
+        let counter = match &self.state.running_time_entry {
             Some(entry) => button::custom(Text::new(format_duration(
                 &Utc::now().signed_duration_since(entry.start_time),
             )))
@@ -174,8 +182,13 @@ impl cosmic::Application for AppletModel {
 
         let timer_running = Arc::new(AtomicBool::new(true));
 
+        let state_handler = cosmic::cosmic_config::Config::new(Self::APP_ID, GLOBAL_STATE_VERSION)
+            .expect("Failed to init config.");
+
+        let state = GlobalState::get_entry(&state_handler).unwrap_or_default();
+
         let (timer_page, get_workspaces_task) =
-            timer_page::TimerPage::new(Arc::clone(&timer_running));
+            timer_page::TimerPage::new(state.clone(), state_handler.clone());
 
         let get_existing_tracker_task: Task<Message> =
             cosmic::task::message(Message::GetExistingTracker);
@@ -188,39 +201,42 @@ impl cosmic::Application for AppletModel {
             Self {
                 core,
                 popup: None,
-                timer_running: Arc::clone(&timer_running),
                 locale: get_system_locale(),
                 popup_page: Page::Timer,
                 tab_model,
                 timer_page: timer_page,
                 time_entries_page: time_entries_page::TimeEntriesPage::new(),
-                time_entry: None,
-                selected_workspace_id: None,
+                state,
+                state_handler,
             },
             startup_tasks,
         )
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        fn time_ticker() -> Subscription<Message> {
-            Subscription::run_with_id(
-                "ticker",
-                stream::channel(1, |mut output| async move {
-                    let period = 1;
-                    let mut timer = time::interval(time::Duration::from_secs(period));
-                    timer.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
+        let ticker = Subscription::run_with_id(
+            "ticker",
+            stream::channel(1, |mut output| async move {
+                let period = 1;
+                let mut timer = time::interval(time::Duration::from_secs(period));
+                timer.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
 
-                    loop {
-                        tokio::select! {
-                            _ = timer.tick() => {
-                                let _ = output.send(Message::Tick).await;
-                            }
+                loop {
+                    tokio::select! {
+                        _ = timer.tick() => {
+                            let _ = output.send(Message::Tick).await;
                         }
                     }
-                }),
-            )
-        }
-        time_ticker()
+                }
+            }),
+        );
+        let state_watcher = cosmic::cosmic_config::config_subscription(
+            SubscriptionId::StateWatch,
+            Self::APP_ID.into(),
+            GLOBAL_STATE_VERSION,
+        )
+        .map(|update| Message::StateChanged(update.config));
+        Subscription::batch(vec![ticker, state_watcher])
     }
 
     fn update(&mut self, message: Self::Message) -> app::Task<Self::Message> {
@@ -252,9 +268,6 @@ impl cosmic::Application for AppletModel {
             }
             Message::Tick => Task::none(),
             Message::TimerPage(message) => {
-                if let timer_page::Message::NotifyWorkspaceChanged(api_id) = &message {
-                    self.selected_workspace_id = Some(api_id.clone());
-                }
                 self.timer_page.update(message).map(|action| match action {
                     cosmic::Action::None => cosmic::Action::None,
                     cosmic::Action::App(m) => cosmic::Action::App(m.into()),
@@ -291,21 +304,18 @@ impl cosmic::Application for AppletModel {
             }),
             Message::ExistingTrackerGotten(time_entry) => {
                 if let Some(entry) = time_entry {
-                    self.time_entry = Some(entry.clone());
-                    self.timer_running.store(true, Ordering::Relaxed);
+                    self.state
+                        .set_running_time_entry(&self.state_handler, Some(entry));
                 }
                 Task::none()
             }
             Message::StartTimer => {
-                dbg!("Start");
-                if let Some(selected_workspace_id) = self.selected_workspace_id.clone() {
-                    dbg!("Start1");
+                if let Some(selected_workspace) = &self.state.selected_workspace {
+                    let selected_workspace_id = selected_workspace.id.clone();
                     return cosmic::task::future(async move {
-                        dbg!("Start2");
                         let time_entry =
                             TogglClient::start_new_time_entry(selected_workspace_id).await;
                         if let Ok(time_entry) = time_entry {
-                            dbg!("Start3");
                             return Message::TimerStarted(time_entry);
                         }
                         Message::Tick
@@ -314,15 +324,14 @@ impl cosmic::Application for AppletModel {
                 Task::none()
             }
             Message::TimerStarted(time_entry) => {
-                dbg!("Started");
                 if let Some(entry) = time_entry {
-                    self.time_entry = Some(entry.clone());
-                    self.timer_running.store(true, Ordering::Relaxed);
+                    self.state
+                        .set_running_time_entry(&self.state_handler, Some(entry));
                 }
                 Task::none()
             }
             Message::StopTimer => {
-                if let Some(entry) = self.time_entry.clone() {
+                if let Some(entry) = self.state.running_time_entry.clone() {
                     return cosmic::task::future(async move {
                         TogglClient::stop_time_entry(&entry).await;
                         Message::TimerStopped
@@ -331,10 +340,9 @@ impl cosmic::Application for AppletModel {
                 Task::none()
             }
             Message::TimerStopped => {
-                self.time_entry = None;
+                self.state.set_running_time_entry(&self.state_handler, None);
                 Task::none()
             }
-
             Message::GetProjectsForWorkspace(workspace) => cosmic::task::future(async move {
                 let projects = TogglClient::get_workspace_projects(workspace.id).await;
                 match projects {
@@ -343,11 +351,12 @@ impl cosmic::Application for AppletModel {
                 }
             }),
             Message::ProjectsGotten(projects) => todo!(),
-            // Message::WorkspaceSelected(api_id) => {
-            // dbg!(&api_id);
-            // self.selected_workspace_id = Some(api_id);
-            // Task::none()
-            // }
+            Message::StateChanged(state) => {
+                tracing::info!("State changed.");
+                self.state = state.clone();
+                self.timer_page.state = state;
+                Task::none()
+            }
         }
     }
     fn view(&self) -> cosmic::Element<'_, Self::Message> {
