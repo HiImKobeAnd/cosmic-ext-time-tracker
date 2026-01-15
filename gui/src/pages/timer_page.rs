@@ -1,10 +1,7 @@
 use cosmic::{
     app,
-    iced::{
-        widget::{column, row},
-        Length,
-    },
-    widget::{button, dropdown, icon},
+    iced::{widget::column, Length},
+    widget::dropdown,
     Element, Task,
 };
 use tracker_integrations::{Project, TogglClient, Workspace};
@@ -62,22 +59,11 @@ impl TimerPage {
             self.current_project,
             Message::ProjectSelected,
         );
-        // let toggle_timer_button = button::icon(match self.timer_running {
-        //     true => icon::from_name("media-playback-stop-symbolic"),
-        //     false => icon::from_name("media-playback-start-symbolic"),
-        // })
-        // .on_press(Message::ToggleTimer)
-        // .class(cosmic::theme::Button::AppletIcon);
-
-        let reset_button = button::icon(icon::from_name("object-rotate-left-symbolic"))
-            // .on_press(Message::ResetTimer)
-            .class(cosmic::theme::Button::AppletIcon);
 
         Element::from(column![
             // task_selector.width(Length::Fill),
             workspace_selector.width(Length::Fill),
             projects_selector.width(Length::Fill),
-            row![reset_button]
         ])
         // .explain(cosmic::iced::Color::WHITE)
     }
