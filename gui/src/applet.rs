@@ -19,7 +19,7 @@ use cosmic::{
     Element, Task,
 };
 use icu::locale::Locale;
-use std::sync::LazyLock;
+use std::{sync::LazyLock, time::Duration};
 use tokio::time;
 use tracker_integrations::{TimeEntry, TogglClient};
 
@@ -210,22 +210,7 @@ impl cosmic::Application for AppletModel {
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        let ticker = Subscription::run_with_id(
-            "ticker",
-            stream::channel(1, |mut output| async move {
-                let period = 1;
-                let mut timer = time::interval(time::Duration::from_secs(period));
-                timer.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
-
-                loop {
-                    tokio::select! {
-                        _ = timer.tick() => {
-                            let _ = output.send(Message::Tick).await;
-                        }
-                    }
-                }
-            }),
-        );
+        let ticker = cosmic::iced::time::every(Duration::from_secs(1)).map(|_| Message::Tick);
         let state_watcher = cosmic::cosmic_config::config_subscription(
             SubscriptionId::StateWatch,
             Self::APP_ID.into(),
