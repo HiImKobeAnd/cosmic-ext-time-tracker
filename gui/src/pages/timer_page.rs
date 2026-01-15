@@ -19,6 +19,7 @@ pub struct TimerPage {
     state_handler: cosmic::cosmic_config::Config,
     current_workspace: Option<usize>,
     current_project: Option<usize>,
+    toggl_client: TogglClient,
 }
 
 #[derive(Debug, Clone)]
@@ -83,13 +84,16 @@ impl TimerPage {
 
     pub fn update(&mut self, message: Message) -> app::Task<Message> {
         match message {
-            Message::GetWorkspaces => cosmic::task::future(async move {
-                let workspaces = TogglClient::get_user_workspaces().await;
-                match workspaces {
-                    Ok(workspaces) => Message::WorkspacesGotten(Some(workspaces)),
-                    Err(_) => Message::WorkspacesGotten(None),
-                }
-            }),
+            Message::GetWorkspaces => {
+                let client = self.toggl_client.clone();
+                cosmic::task::future(async move {
+                    let workspaces = client.get_user_workspaces().await;
+                    match workspaces {
+                        Ok(workspaces) => Message::WorkspacesGotten(Some(workspaces)),
+                        Err(_) => Message::WorkspacesGotten(None),
+                    }
+                })
+            }
             Message::WorkspacesGotten(workspaces) => {
                 if let Some(workspaces) = workspaces {
                     let _ = self
@@ -104,6 +108,7 @@ impl TimerPage {
                     &self.state_handler,
                     Some(self.state.workspaces[index].clone()),
                 );
+                let _ = self.state.set_selected_project(&self.state_handler, None);
                 Task::done(cosmic::Action::App(Message::GetProjectsForWorkspace(
                     self.state.workspaces[index].clone(),
                 )))
@@ -116,13 +121,16 @@ impl TimerPage {
                 );
                 Task::none()
             }
-            Message::GetProjectsForWorkspace(workspace) => cosmic::task::future(async move {
-                let projects = TogglClient::get_workspace_projects(workspace.id).await;
-                match projects {
-                    Ok(projects) => Message::ProjectsGotten(Some(projects)),
-                    Err(_) => Message::ProjectsGotten(None),
-                }
-            }),
+            Message::GetProjectsForWorkspace(workspace) => {
+                let client = self.toggl_client.clone();
+                cosmic::task::future(async move {
+                    let projects = client.get_workspace_projects(workspace.id).await;
+                    match projects {
+                        Ok(projects) => Message::ProjectsGotten(Some(projects)),
+                        Err(_) => Message::ProjectsGotten(None),
+                    }
+                })
+            }
             Message::ProjectsGotten(projects) => {
                 if let Some(projects) = projects {
                     let _ = self
@@ -134,6 +142,7 @@ impl TimerPage {
         }
     }
     pub fn new(
+        toggl_client: TogglClient,
         state: GlobalState,
         state_handler: cosmic::cosmic_config::Config,
     ) -> (Self, Task<Message>) {
@@ -153,6 +162,7 @@ impl TimerPage {
         }
         (
             TimerPage {
+                toggl_client,
                 state,
                 state_handler,
                 // current_task: "".to_string(),

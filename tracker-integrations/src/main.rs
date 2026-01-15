@@ -38,10 +38,10 @@ async fn main() {
     //     }
     //     None => tracing::warn!("No workspaces to check for projects."),
     // }
-    let time_entry = TogglClient::get_current_time_entry()
-        .await
-        .expect("Failed to get current time entry.");
-    dbg!(&time_entry);
+    // let time_entry = TogglClient::get_current_time_entry()
+    // .await
+    // .expect("Failed to get current time entry.");
+    // dbg!(&time_entry);
     // if let Some(time_entry) = time_entry {
     // let _ = TogglClient::stop_time_entry(&time_entry);
     // }

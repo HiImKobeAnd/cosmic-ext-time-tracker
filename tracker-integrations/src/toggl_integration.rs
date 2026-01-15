@@ -6,11 +6,25 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use crate::{
-    authentication::get_api_key,
+    authentication::{self},
     models::{ApiId, Project, Tag, TimeEntry, Workspace},
 };
 
-pub struct TogglClient;
+#[derive(Clone)]
+pub struct TogglClient {
+    client: Client,
+    api_key: String,
+}
+
+impl TogglClient {
+    pub fn new() -> Self {
+        tracing::info!("Creating new Toggl Client.");
+        Self {
+            client: Client::new(),
+            api_key: authentication::get_api_key().unwrap(),
+        }
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TogglProject {
@@ -102,13 +116,12 @@ impl From<TogglTimeEntry> for TimeEntry {
 }
 
 impl TogglClient {
-    pub async fn get_current_time_entry() -> Result<Option<TimeEntry>, reqwest::Error> {
-        tracing::info!("Running get current time entry.");
-        let client = Client::new();
-        let api_key = get_api_key().unwrap();
-        let resp: Option<TogglTimeEntry> = client
+    pub async fn get_current_time_entry(&self) -> Result<Option<TimeEntry>, reqwest::Error> {
+        tracing::info!("Getting current time entry.");
+        let resp: Option<TogglTimeEntry> = self
+            .client
             .get("https://api.track.toggl.com/api/v9/me/time_entries/current")
-            .basic_auth(api_key, Some("api_token"))
+            .basic_auth(&self.api_key, Some("api_token"))
             .header(CONTENT_TYPE, "application/json")
             .send()
             .await?
@@ -120,13 +133,12 @@ impl TogglClient {
         }
     }
 
-    pub async fn get_user_workspaces() -> Result<Vec<Workspace>, reqwest::Error> {
-        tracing::info!("Running get user workspaces.");
-        let client = Client::new();
-        let api_key = get_api_key().unwrap();
-        let resp: Vec<TogglWorkspace> = client
+    pub async fn get_user_workspaces(&self) -> Result<Vec<Workspace>, reqwest::Error> {
+        tracing::info!("Getting user workspaces.");
+        let resp: Vec<TogglWorkspace> = self
+            .client
             .get("https://api.track.toggl.com/api/v9/me/workspaces")
-            .basic_auth(api_key, Some("api_token"))
+            .basic_auth(&self.api_key, Some("api_token"))
             .header(CONTENT_TYPE, "application/json")
             .send()
             .await?
@@ -136,16 +148,16 @@ impl TogglClient {
     }
 
     pub async fn get_workspace_projects(
+        &self,
         workspace_id: ApiId,
     ) -> Result<Vec<Project>, reqwest::Error> {
-        tracing::info!("Running get workspace projects.");
-        let client = Client::new();
-        let api_key = get_api_key().unwrap();
-        let resp: Vec<TogglProject> = client
+        tracing::info!("Getting workspace projects.");
+        let resp: Vec<TogglProject> = self
+            .client
             .get(format!(
                 "https://api.track.toggl.com/api/v9/workspaces/{workspace_id}/projects"
             ))
-            .basic_auth(api_key, Some("api_token"))
+            .basic_auth(&self.api_key, Some("api_token"))
             .header(CONTENT_TYPE, "application/json")
             .send()
             .await?
@@ -155,18 +167,18 @@ impl TogglClient {
     }
 
     pub async fn stop_time_entry(
+        &self,
         workspace_id: ApiId,
         time_entry_id: ApiId,
     ) -> Result<(), reqwest::Error> {
         tracing::info!("Stopping running time entry.");
-        let client = Client::new();
-        let api_key = get_api_key().unwrap();
-        let _resp = client
+        let _resp = self
+            .client
             .patch(format!(
                 "https://api.track.toggl.com/api/v9/workspaces/{}/time_entries/{}/stop",
                 workspace_id, time_entry_id
             ))
-            .basic_auth(api_key, Some("api_token"))
+            .basic_auth(&self.api_key, Some("api_token"))
             .header(CONTENT_TYPE, "application/json")
             .send()
             .await?;
@@ -174,9 +186,11 @@ impl TogglClient {
     }
 
     pub async fn start_new_time_entry(
+        &self,
         workspace_id: ApiId,
         project_id: Option<ApiId>,
     ) -> Result<TimeEntry, reqwest::Error> {
+        tracing::info!("Starting new time entry.");
         let body = json!({
             "workspace_id": workspace_id,
             "project_id": project_id,
@@ -185,15 +199,13 @@ impl TogglClient {
             "start": Utc::now().to_rfc3339(),
         });
 
-        tracing::info!("Stopping running time entry.");
-        let client = Client::new();
-        let api_key = get_api_key().unwrap();
-        let resp: TogglTimeEntry = client
+        let resp: TogglTimeEntry = self
+            .client
             .post(format!(
                 "https://api.track.toggl.com/api/v9/workspaces/{}/time_entries",
                 workspace_id
             ))
-            .basic_auth(api_key, Some("api_token"))
+            .basic_auth(&self.api_key, Some("api_token"))
             .header(CONTENT_TYPE, "application/json")
             .json(&body)
             .send()
@@ -204,6 +216,7 @@ impl TogglClient {
     }
 
     pub async fn update_running_time_entry(time_entry: &TimeEntry) -> Result<(), reqwest::Error> {
+        tracing::info!("Updaing running time entry.");
         todo!()
     }
 }

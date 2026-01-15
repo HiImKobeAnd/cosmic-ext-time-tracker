@@ -69,6 +69,7 @@ pub struct AppletModel {
     popup_page: Page,
     timer_page: timer_page::TimerPage,
     time_entries_page: time_entries_page::TimeEntriesPage,
+    toggl_client: TogglClient,
 }
 
 #[derive(Debug, Clone)]
@@ -179,8 +180,10 @@ impl cosmic::Application for AppletModel {
 
         let state = GlobalState::get_entry(&state_handler).unwrap_or_default();
 
+        let toggl_client = TogglClient::new();
+
         let (timer_page, get_workspaces_task) =
-            timer_page::TimerPage::new(state.clone(), state_handler.clone());
+            timer_page::TimerPage::new(toggl_client.clone(), state.clone(), state_handler.clone());
 
         let get_existing_tracker_task: Task<Message> =
             cosmic::task::message(Message::GetExistingTracker);
@@ -200,6 +203,7 @@ impl cosmic::Application for AppletModel {
                 time_entries_page: time_entries_page::TimeEntriesPage::new(),
                 state,
                 state_handler,
+                toggl_client,
             },
             startup_tasks,
         )
@@ -287,13 +291,16 @@ impl cosmic::Application for AppletModel {
                 }
                 Task::none()
             }
-            Message::GetExistingTracker => cosmic::task::future(async move {
-                let time_entry = TogglClient::get_current_time_entry().await;
-                match time_entry {
-                    Ok(entry) => Message::ExistingTrackerGotten(entry),
-                    Err(_) => Message::ExistingTrackerGotten(None),
-                }
-            }),
+            Message::GetExistingTracker => {
+                let client = self.toggl_client.clone();
+                cosmic::task::future(async move {
+                    let time_entry = client.get_current_time_entry().await;
+                    match time_entry {
+                        Ok(entry) => Message::ExistingTrackerGotten(entry),
+                        Err(_) => Message::ExistingTrackerGotten(None),
+                    }
+                })
+            }
             Message::ExistingTrackerGotten(time_entry) => {
                 let _ = self
                     .state
@@ -307,12 +314,11 @@ impl cosmic::Application for AppletModel {
                     if let Some(selected_project) = &self.state.selected_project {
                         selected_project_id = Some(selected_project.id.clone());
                     };
+                    let client = self.toggl_client.clone();
                     return cosmic::task::future(async move {
-                        let time_entry = TogglClient::start_new_time_entry(
-                            selected_workspace_id,
-                            selected_project_id,
-                        )
-                        .await;
+                        let time_entry = client
+                            .start_new_time_entry(selected_workspace_id, selected_project_id)
+                            .await;
                         if let Ok(time_entry) = time_entry {
                             return Message::TimerStarted(time_entry);
                         }
@@ -329,8 +335,9 @@ impl cosmic::Application for AppletModel {
             }
             Message::StopTimer => {
                 if let Some(entry) = self.state.running_time_entry.clone() {
+                    let client = self.toggl_client.clone();
                     return cosmic::task::future(async move {
-                        let _ = TogglClient::stop_time_entry(entry.workspace_id, entry.id).await;
+                        let _ = client.stop_time_entry(entry.workspace_id, entry.id).await;
                         Message::TimerStopped
                     });
                 }
