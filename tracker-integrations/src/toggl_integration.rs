@@ -111,11 +111,9 @@ impl TogglClient {
             .basic_auth(api_key, Some("api_token"))
             .header(CONTENT_TYPE, "application/json")
             .send()
-            .await
-            .expect("Failed to get response.")
+            .await?
             .json()
-            .await
-            .expect("Failed to convert to JSON.");
+            .await?;
         match resp {
             Some(entry) => Ok(Some(entry.into())),
             None => Ok(None),
@@ -131,11 +129,9 @@ impl TogglClient {
             .basic_auth(api_key, Some("api_token"))
             .header(CONTENT_TYPE, "application/json")
             .send()
-            .await
-            .expect("Failed to get response.")
+            .await?
             .json()
-            .await
-            .expect("Failed to convert to JSON.");
+            .await?;
         Ok(resp.into_iter().map(Into::into).collect())
     }
 
@@ -152,35 +148,35 @@ impl TogglClient {
             .basic_auth(api_key, Some("api_token"))
             .header(CONTENT_TYPE, "application/json")
             .send()
-            .await
-            .expect("Failed to get response.")
+            .await?
             .json()
-            .await
-            .expect("Failed to convert to JSON.");
+            .await?;
         Ok(resp.into_iter().map(Into::into).collect())
     }
 
-    pub async fn stop_time_entry(time_entry: &TimeEntry) -> Result<(), reqwest::Error> {
+    pub async fn stop_time_entry(
+        workspace_id: ApiId,
+        time_entry_id: ApiId,
+    ) -> Result<(), reqwest::Error> {
         tracing::info!("Stopping running time entry.");
         let client = Client::new();
         let api_key = get_api_key().unwrap();
         let _resp = client
             .patch(format!(
                 "https://api.track.toggl.com/api/v9/workspaces/{}/time_entries/{}/stop",
-                time_entry.workspace_id, time_entry.id
+                workspace_id, time_entry_id
             ))
             .basic_auth(api_key, Some("api_token"))
             .header(CONTENT_TYPE, "application/json")
             .send()
-            .await
-            .expect("Failed to get response.");
+            .await?;
         Ok(())
     }
 
     pub async fn start_new_time_entry(
         workspace_id: ApiId,
         project_id: Option<ApiId>,
-    ) -> Result<Option<TimeEntry>, reqwest::Error> {
+    ) -> Result<TimeEntry, reqwest::Error> {
         let body = json!({
             "workspace_id": workspace_id,
             "project_id": project_id,
@@ -201,12 +197,10 @@ impl TogglClient {
             .header(CONTENT_TYPE, "application/json")
             .json(&body)
             .send()
-            .await
-            .expect("Failed to get response.")
+            .await?
             .json()
-            .await
-            .expect("Failed to convert to JSON.");
-        Ok(Some(resp.into()))
+            .await?;
+        Ok(resp.into())
     }
 
     pub async fn update_running_time_entry(time_entry: &TimeEntry) -> Result<(), reqwest::Error> {

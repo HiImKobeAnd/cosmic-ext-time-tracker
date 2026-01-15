@@ -82,7 +82,7 @@ pub enum Message {
     GetExistingTracker,
     ExistingTrackerGotten(Option<TimeEntry>),
     StartTimer,
-    TimerStarted(Option<TimeEntry>),
+    TimerStarted(TimeEntry),
     StopTimer,
     TimerStopped,
     StateChanged(GlobalState),
@@ -322,17 +322,15 @@ impl cosmic::Application for AppletModel {
                 Task::none()
             }
             Message::TimerStarted(time_entry) => {
-                if let Some(entry) = time_entry {
-                    let _ = self
-                        .state
-                        .set_running_time_entry(&self.state_handler, Some(entry));
-                }
+                let _ = self
+                    .state
+                    .set_running_time_entry(&self.state_handler, Some(time_entry));
                 Task::none()
             }
             Message::StopTimer => {
                 if let Some(entry) = self.state.running_time_entry.clone() {
                     return cosmic::task::future(async move {
-                        let _ = TogglClient::stop_time_entry(&entry).await;
+                        let _ = TogglClient::stop_time_entry(entry.workspace_id, entry.id).await;
                         Message::TimerStopped
                     });
                 }
