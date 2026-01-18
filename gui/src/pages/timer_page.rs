@@ -50,7 +50,7 @@ impl TimerPage {
             self.current_workspace,
             Message::WorkspaceSelected,
         );
-        let projects_selector = dropdown::dropdown(
+        let project_selector = dropdown::dropdown(
             self.state
                 .projects_for_selected_workspace
                 .iter()
@@ -63,7 +63,7 @@ impl TimerPage {
         Element::from(column![
             // task_selector.width(Length::Fill),
             workspace_selector.width(Length::Fill),
-            projects_selector.width(Length::Fill),
+            project_selector.width(Length::Fill),
         ])
         // .explain(cosmic::iced::Color::WHITE)
     }

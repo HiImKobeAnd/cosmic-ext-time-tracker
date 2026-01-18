@@ -2,19 +2,24 @@ use chrono::{TimeDelta, Utc};
 use cosmic::{
     app,
     cosmic_config::CosmicConfigEntry,
-    cosmic_theme::Spacing,
+    cosmic_theme::{
+        palette::{IntoColor, Srgb},
+        Spacing,
+    },
     iced::{
+        border,
         futures::SinkExt,
         stream,
         widget::{column, row},
-        window, Subscription,
+        window, Alignment, Color, Length, Subscription,
     },
     iced_winit::commands::popup::{destroy_popup, get_popup},
     theme,
     widget::{
         autosize, button, container, icon,
         segmented_button::{self, Entity},
-        tab_bar, Id, Text,
+        svg::Handle,
+        tab_bar, Id, Svg, Text,
     },
     Element, Task,
 };
@@ -119,8 +124,29 @@ fn format_duration(duration: &TimeDelta) -> String {
     }
 }
 
+fn color_circle(color: Color, size: f32) -> Element<'static, Message> {
+    container("")
+        .width(Length::Fixed(size))
+        .height(Length::Fixed(size))
+        .style(move |_theme| container::Style {
+            background: Some(color.into()),
+            border: border::rounded(size / 2.0),
+            ..Default::default()
+        })
+        .into()
+}
+
 impl AppletModel {
     fn horizontal_layout(&self) -> Element<'_, Message> {
+        let applet_height: f32 = self.core.applet.suggested_size(true).1.into();
+        let mut project_indicator = color_circle(Color::WHITE, 32.);
+        if let Some(selected_project) = self.state.selected_project.clone() {
+            project_indicator = color_circle(
+                Color::parse(&selected_project.color).unwrap_or(Color::WHITE),
+                applet_height / 2.,
+            )
+        };
+
         let counter = match &self.state.running_time_entry {
             Some(entry) => button::custom(Text::new(format_duration(
                 &Utc::now().signed_duration_since(entry.start_time),
@@ -136,8 +162,7 @@ impl AppletModel {
             .on_press(Message::TogglePopup)
             .class(cosmic::theme::Button::AppletIcon);
         Element::from(
-            row!(counter, popup_toggle_button,), // .align_y(Alignment::Center)
-                                                 // .padding([0, self.core.applet.suggested_padding(true)]),
+            row!(project_indicator, counter, popup_toggle_button,).align_y(Alignment::Center),
         )
         // .explain(cosmic::iced::Color::WHITE)
     }
