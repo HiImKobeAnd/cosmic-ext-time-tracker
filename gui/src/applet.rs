@@ -324,10 +324,15 @@ impl cosmic::Application for AppletModel {
                     if let Some(selected_project) = &self.state.selected_project {
                         selected_project_id = Some(selected_project.id.clone());
                     };
+                    let current_description = self.state.current_description.clone();
                     let client = self.toggl_client.clone();
                     return cosmic::task::future(async move {
                         let time_entry = client
-                            .start_new_time_entry(selected_workspace_id, selected_project_id)
+                            .start_new_time_entry(
+                                selected_workspace_id,
+                                selected_project_id,
+                                current_description,
+                            )
                             .await;
                         if let Ok(time_entry) = time_entry {
                             return Message::TimerStarted(time_entry);

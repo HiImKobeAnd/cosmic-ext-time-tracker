@@ -1,7 +1,7 @@
 use cosmic::{
     app,
     iced::{widget::column, Length},
-    widget::dropdown,
+    widget::{dropdown, text_input},
     Element, Task,
 };
 use tracker_integrations::{Project, TogglClient, Workspace};
@@ -16,6 +16,7 @@ pub struct TimerPage {
     state_handler: cosmic::cosmic_config::Config,
     current_workspace: Option<usize>,
     current_project: Option<usize>,
+    current_description: Option<String>,
     toggl_client: TogglClient,
 }
 
@@ -28,6 +29,7 @@ pub enum Message {
     ProjectSelected(usize),
     GetProjectsForWorkspace(Workspace),
     ProjectsGotten(Option<Vec<Project>>),
+    DescriptionChanged(String),
 }
 
 impl From<Message> for applet::Message {
@@ -38,9 +40,6 @@ impl From<Message> for applet::Message {
 
 impl TimerPage {
     pub fn view(&self) -> cosmic::Element<'_, Message> {
-        // let task_selector = text_input::text_input("Task", self.current_task.clone())
-        // .on_input(Message::TaskTextChanged);
-
         let workspace_selector = dropdown::dropdown(
             self.state
                 .workspaces
@@ -60,10 +59,16 @@ impl TimerPage {
             Message::ProjectSelected,
         );
 
+        let description_input = text_input::text_input(
+            "Description",
+            self.current_description.clone().unwrap_or_default(),
+        )
+        .on_input(Message::DescriptionChanged);
+
         Element::from(column![
-            // task_selector.width(Length::Fill),
             workspace_selector.width(Length::Fill),
             project_selector.width(Length::Fill),
+            description_input.width(Length::Fill),
         ])
         // .explain(cosmic::iced::Color::WHITE)
     }
@@ -125,6 +130,17 @@ impl TimerPage {
                 }
                 Task::none()
             }
+            Message::DescriptionChanged(description) => {
+                let desc = match description.is_empty() {
+                    true => None,
+                    false => Some(description),
+                };
+                self.current_description = desc.clone();
+                let _ = self
+                    .state
+                    .set_current_description(&self.state_handler, desc);
+                Task::none()
+            }
         }
     }
     pub fn new(
@@ -146,14 +162,16 @@ impl TimerPage {
                 .iter()
                 .position(|p| p.id == selected_project.id);
         }
+        let current_description = state.current_description.clone();
+
         (
             TimerPage {
                 toggl_client,
                 state,
                 state_handler,
-                // current_task: "".to_string(),
                 current_workspace,
                 current_project,
+                current_description: current_description,
             },
             Task::done(Message::GetWorkspaces),
         )

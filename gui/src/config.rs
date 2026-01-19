@@ -17,6 +17,7 @@ pub struct GlobalState {
     pub running_time_entry: Option<TimeEntry>,
     pub selected_workspace: Option<Workspace>,
     pub selected_project: Option<Project>,
+    pub current_description: Option<String>,
     pub workspaces: Vec<Workspace>,
     pub projects_for_selected_workspace: Vec<Project>,
     pub tags: Vec<Tag>,

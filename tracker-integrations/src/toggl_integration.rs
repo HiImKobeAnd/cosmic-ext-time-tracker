@@ -189,11 +189,13 @@ impl TogglClient {
         &self,
         workspace_id: ApiId,
         project_id: Option<ApiId>,
+        description: Option<String>,
     ) -> Result<TimeEntry, reqwest::Error> {
         tracing::info!("Starting new time entry.");
         let body = json!({
             "workspace_id": workspace_id,
             "project_id": project_id,
+            "description": description,
             "created_with": "cosmic-ext-time-tracker",
             "duration": -1,
             "start": Utc::now().to_rfc3339(),
