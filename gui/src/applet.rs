@@ -22,7 +22,9 @@ use std::{
     sync::{Arc, LazyLock},
     time::Duration,
 };
-use tracker_integrations::{get_api_key, Authenticated, TimeEntry, TogglClient, Unauthenticated};
+use tracker_integrations::{
+    get_api_key, Authenticated, Integration, TimeEntry, TogglClient, Unauthenticated,
+};
 
 use crate::{
     config::{GlobalState, GLOBAL_STATE_VERSION},
@@ -64,9 +66,18 @@ pub enum SubscriptionId {
     StateWatch,
 }
 
-pub enum Auth {
+pub enum Authentication {
     Auth(TogglClient<Authenticated>),
     UnAuth(TogglClient<Unauthenticated>),
+}
+
+impl Authentication {
+    pub fn as_authenticated(&self) -> Option<TogglClient<Authenticated>> {
+        match self {
+            Authentication::Auth(client) => Some(client.clone()),
+            _ => None,
+        }
+    }
 }
 
 pub struct AppletModel {
@@ -80,7 +91,7 @@ pub struct AppletModel {
     timer_page: timer_page::TimerPage,
     time_entries_page: time_entries_page::TimeEntriesPage,
     // settings_page: settings_page::SettingsPage,
-    integration_client: Option<Arc<TogglClient<Authenticated>>>,
+    integration_client: Option<Arc<Authentication>>,
 }
 
 #[derive(Debug, Clone)]
@@ -212,9 +223,25 @@ impl cosmic::Application for AppletModel {
 
         let state = GlobalState::get_entry(&state_handler).unwrap_or_default();
 
-        let integration_client = Some(Arc::new(
-            TogglClient::new().authenticate(get_api_key().expect("No API Key found.")),
-        )); // TODO rewrite this section.
+        // let integration_client =
+        //     state
+        //         .clone()
+        //         .selected_tracker
+        //         .map(|Integration::TogglIntegration| {
+        //             let client = TogglClient::new();
+        //             let auth = match get_api_key() {
+        //                 Ok(api_key) => Authentication::Auth(client.authenticate(api_key)),
+        //                 Err(_) => Authentication::UnAuth(client),
+        //             };
+        //             Arc::new(auth)
+        //         });
+        //
+        let integration_client = match get_api_key() {
+            Ok(api_key) => Some(Arc::new(Authentication::Auth(
+                TogglClient::new().authenticate(api_key),
+            ))),
+            Err(_) => None,
+        };
 
         let (timer_page, get_workspaces_task) = timer_page::TimerPage::new(
             integration_client.clone(),
@@ -328,16 +355,21 @@ impl cosmic::Application for AppletModel {
                 }
                 Task::none()
             }
-            Message::GetExistingTracker => {
-                let client = self.integration_client.clone().expect("No client found.");
-                cosmic::task::future(async move {
-                    let time_entry = client.get_current_time_entry().await;
-                    match time_entry {
-                        Ok(entry) => Message::ExistingTrackerGotten(entry),
-                        Err(_) => Message::ExistingTrackerGotten(None),
-                    }
+            Message::GetExistingTracker => self
+                .integration_client
+                .as_ref()
+                .and_then(|auth| auth.as_authenticated())
+                .map(|client| {
+                    cosmic::task::future(async move {
+                        let time_entry = client.get_current_time_entry().await;
+                        match time_entry {
+                            Ok(entry) => Message::ExistingTrackerGotten(entry),
+                            Err(_) => Message::ExistingTrackerGotten(None),
+                        }
+                    })
                 })
-            }
+                .unwrap_or(Task::none()),
+
             Message::ExistingTrackerGotten(time_entry) => {
                 let _ = self
                     .state
@@ -352,20 +384,26 @@ impl cosmic::Application for AppletModel {
                         selected_project_id = Some(selected_project.id.clone());
                     };
                     let current_description = self.state.current_description.clone();
-                    let client = self.integration_client.clone().expect("No client found.");
-                    return cosmic::task::future(async move {
-                        let time_entry = client
-                            .start_new_time_entry(
-                                selected_workspace_id,
-                                selected_project_id,
-                                current_description,
-                            )
-                            .await;
-                        if let Ok(time_entry) = time_entry {
-                            return Message::TimerStarted(time_entry);
-                        }
-                        Message::Tick
-                    });
+                    return self
+                        .integration_client
+                        .as_ref()
+                        .and_then(|auth| auth.as_authenticated())
+                        .map(|client| {
+                            return cosmic::task::future(async move {
+                                let time_entry = client
+                                    .start_new_time_entry(
+                                        selected_workspace_id,
+                                        selected_project_id,
+                                        current_description,
+                                    )
+                                    .await;
+                                if let Ok(time_entry) = time_entry {
+                                    return Message::TimerStarted(time_entry);
+                                }
+                                Message::Tick
+                            });
+                        })
+                        .unwrap_or(Task::none());
                 }
                 Task::none()
             }
@@ -377,11 +415,17 @@ impl cosmic::Application for AppletModel {
             }
             Message::StopTimer => {
                 if let Some(entry) = self.state.running_time_entry.clone() {
-                    let client = self.integration_client.clone().expect("No client found.");
-                    return cosmic::task::future(async move {
-                        let _ = client.stop_time_entry(entry.workspace_id, entry.id).await;
-                        Message::TimerStopped
-                    });
+                    return self
+                        .integration_client
+                        .as_ref()
+                        .and_then(|auth| auth.as_authenticated())
+                        .map(|client| {
+                            return cosmic::task::future(async move {
+                                let _ = client.stop_time_entry(entry.workspace_id, entry.id).await;
+                                Message::TimerStopped
+                            });
+                        })
+                        .unwrap_or(Task::none());
                 }
                 Task::none()
             }

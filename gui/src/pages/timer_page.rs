@@ -9,7 +9,7 @@ use cosmic::{
 use tracker_integrations::{Authenticated, Project, TogglClient, Unauthenticated, Workspace};
 
 use crate::{
-    applet::{self},
+    applet::{self, Authentication},
     config::GlobalState,
 };
 
@@ -24,7 +24,7 @@ pub struct TimerPage {
     current_workspace: Option<usize>,
     current_project: Option<usize>,
     current_description: Option<String>,
-    integration_client: Option<Arc<TogglClient<Authenticated>>>,
+    integration_client: Option<Arc<Authentication>>,
 }
 
 #[derive(Debug, Clone)]
@@ -82,16 +82,20 @@ impl TimerPage {
 
     pub fn update(&mut self, message: Message) -> app::Task<Message> {
         match message {
-            Message::GetWorkspaces => {
-                let client = self.integration_client.clone().expect("No client found");
-                cosmic::task::future(async move {
-                    let workspaces = client.get_user_workspaces().await;
-                    match workspaces {
-                        Ok(workspaces) => Message::WorkspacesGotten(Some(workspaces)),
-                        Err(_) => Message::WorkspacesGotten(None),
-                    }
+            Message::GetWorkspaces => self
+                .integration_client
+                .as_ref()
+                .and_then(|auth| auth.as_authenticated())
+                .map(|client| {
+                    cosmic::task::future(async move {
+                        let workspaces = client.get_user_workspaces().await;
+                        match workspaces {
+                            Ok(workspaces) => Message::WorkspacesGotten(Some(workspaces)),
+                            Err(_) => Message::WorkspacesGotten(None),
+                        }
+                    })
                 })
-            }
+                .unwrap_or(Task::none()),
             Message::WorkspacesGotten(workspaces) => {
                 if let Some(workspaces) = workspaces {
                     let _ = self
@@ -119,16 +123,22 @@ impl TimerPage {
                 );
                 Task::none()
             }
-            Message::GetProjectsForWorkspace(workspace) => {
-                let client = self.integration_client.clone().expect("No client found");
-                cosmic::task::future(async move {
-                    let projects = client.get_workspace_projects(workspace.id).await;
-                    match projects {
-                        Ok(projects) => Message::ProjectsGotten(Some(projects)),
-                        Err(_) => Message::ProjectsGotten(None),
-                    }
+
+            Message::GetProjectsForWorkspace(workspace) => self
+                .integration_client
+                .as_ref()
+                .and_then(|auth| auth.as_authenticated())
+                .map(|client| {
+                    cosmic::task::future(async move {
+                        let projects = client.get_workspace_projects(workspace.id).await;
+                        match projects {
+                            Ok(projects) => Message::ProjectsGotten(Some(projects)),
+                            Err(_) => Message::ProjectsGotten(None),
+                        }
+                    })
                 })
-            }
+                .unwrap_or(Task::none()),
+
             Message::ProjectsGotten(projects) => {
                 if let Some(projects) = projects {
                     let _ = self
@@ -151,7 +161,7 @@ impl TimerPage {
         }
     }
     pub fn new(
-        integration_client: Option<Arc<TogglClient<Authenticated>>>,
+        integration_client: Option<Arc<Authentication>>,
         state: GlobalState,
         state_handler: cosmic::cosmic_config::Config,
     ) -> (Self, Task<Message>) {
