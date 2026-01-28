@@ -10,18 +10,31 @@ use crate::{
     models::{ApiId, Project, Tag, TimeEntry, Workspace},
 };
 
+pub struct Unauthenticated;
 #[derive(Clone)]
-pub struct TogglClient {
-    client: Client,
+pub struct Authenticated {
     api_key: String,
 }
 
-impl TogglClient {
+#[derive(Clone)]
+pub struct TogglClient<Auth> {
+    client: Client,
+    auth_state: Auth,
+}
+
+impl TogglClient<Unauthenticated> {
     pub fn new() -> Self {
         tracing::info!("Creating new Toggl Client.");
         Self {
             client: Client::new(),
-            api_key: authentication::get_api_key().unwrap(),
+            auth_state: Unauthenticated,
+        }
+    }
+
+    pub fn authenticate(self, api_key: String) -> TogglClient<Authenticated> {
+        TogglClient {
+            client: self.client,
+            auth_state: Authenticated { api_key },
         }
     }
 }
@@ -115,13 +128,13 @@ impl From<TogglTimeEntry> for TimeEntry {
     }
 }
 
-impl TogglClient {
+impl TogglClient<Authenticated> {
     pub async fn get_current_time_entry(&self) -> Result<Option<TimeEntry>, reqwest::Error> {
         tracing::info!("Getting current time entry.");
         let resp: Option<TogglTimeEntry> = self
             .client
             .get("https://api.track.toggl.com/api/v9/me/time_entries/current")
-            .basic_auth(&self.api_key, Some("api_token"))
+            .basic_auth(&self.auth_state.api_key, Some("api_token"))
             .header(CONTENT_TYPE, "application/json")
             .send()
             .await?
@@ -138,7 +151,7 @@ impl TogglClient {
         let resp: Vec<TogglWorkspace> = self
             .client
             .get("https://api.track.toggl.com/api/v9/me/workspaces")
-            .basic_auth(&self.api_key, Some("api_token"))
+            .basic_auth(&self.auth_state.api_key, Some("api_token"))
             .header(CONTENT_TYPE, "application/json")
             .send()
             .await?
@@ -157,7 +170,7 @@ impl TogglClient {
             .get(format!(
                 "https://api.track.toggl.com/api/v9/workspaces/{workspace_id}/projects"
             ))
-            .basic_auth(&self.api_key, Some("api_token"))
+            .basic_auth(&self.auth_state.api_key, Some("api_token"))
             .header(CONTENT_TYPE, "application/json")
             .send()
             .await?
@@ -178,7 +191,7 @@ impl TogglClient {
                 "https://api.track.toggl.com/api/v9/workspaces/{}/time_entries/{}/stop",
                 workspace_id, time_entry_id
             ))
-            .basic_auth(&self.api_key, Some("api_token"))
+            .basic_auth(&self.auth_state.api_key, Some("api_token"))
             .header(CONTENT_TYPE, "application/json")
             .send()
             .await?;
@@ -207,7 +220,7 @@ impl TogglClient {
                 "https://api.track.toggl.com/api/v9/workspaces/{}/time_entries",
                 workspace_id
             ))
-            .basic_auth(&self.api_key, Some("api_token"))
+            .basic_auth(&self.auth_state.api_key, Some("api_token"))
             .header(CONTENT_TYPE, "application/json")
             .json(&body)
             .send()

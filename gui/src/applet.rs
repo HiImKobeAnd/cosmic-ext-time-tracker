@@ -2,14 +2,9 @@ use chrono::{TimeDelta, Utc};
 use cosmic::{
     app,
     cosmic_config::CosmicConfigEntry,
-    cosmic_theme::{
-        palette::{IntoColor, Srgb},
-        Spacing,
-    },
+    cosmic_theme::Spacing,
     iced::{
         border,
-        futures::SinkExt,
-        stream,
         widget::{column, row},
         window, Alignment, Color, Length, Subscription,
     },
@@ -18,19 +13,24 @@ use cosmic::{
     widget::{
         autosize, button, container, icon,
         segmented_button::{self, Entity},
-        svg::Handle,
-        tab_bar, Id, Svg, Text,
+        tab_bar, Id, Text,
     },
     Element, Task,
 };
 use icu::locale::Locale;
-use std::{sync::LazyLock, time::Duration};
-use tokio::time;
-use tracker_integrations::{TimeEntry, TogglClient};
+use std::{
+    sync::{Arc, LazyLock},
+    time::Duration,
+};
+use tracker_integrations::{get_api_key, Authenticated, TimeEntry, TogglClient, Unauthenticated};
 
 use crate::{
     config::{GlobalState, GLOBAL_STATE_VERSION},
-    pages::{time_entries_page, timer_page},
+    pages::{
+        settings_page::{self, SettingsPage},
+        time_entries_page,
+        timer_page::{self},
+    },
 };
 
 static AUTOSIZE_MAIN_ID: LazyLock<Id> = LazyLock::new(|| Id::new("autosize-main"));
@@ -64,6 +64,11 @@ pub enum SubscriptionId {
     StateWatch,
 }
 
+pub enum Auth {
+    Auth(TogglClient<Authenticated>),
+    UnAuth(TogglClient<Unauthenticated>),
+}
+
 pub struct AppletModel {
     core: cosmic::Core,
     state: GlobalState,
@@ -74,7 +79,8 @@ pub struct AppletModel {
     popup_page: Page,
     timer_page: timer_page::TimerPage,
     time_entries_page: time_entries_page::TimeEntriesPage,
-    toggl_client: TogglClient,
+    // settings_page: settings_page::SettingsPage,
+    integration_client: Option<Arc<TogglClient<Authenticated>>>,
 }
 
 #[derive(Debug, Clone)]
@@ -85,6 +91,7 @@ pub enum Message {
     CloseRequested(window::Id),
     TimerPage(timer_page::Message),
     TimeEntriesPage(time_entries_page::Message),
+    // SettingsPage(settings_page::Message),
     GetExistingTracker,
     ExistingTrackerGotten(Option<TimeEntry>),
     StartTimer,
@@ -205,10 +212,17 @@ impl cosmic::Application for AppletModel {
 
         let state = GlobalState::get_entry(&state_handler).unwrap_or_default();
 
-        let toggl_client = TogglClient::new();
+        let integration_client = Some(Arc::new(
+            TogglClient::new().authenticate(get_api_key().expect("No API Key found.")),
+        )); // TODO rewrite this section.
 
-        let (timer_page, get_workspaces_task) =
-            timer_page::TimerPage::new(toggl_client.clone(), state.clone(), state_handler.clone());
+        let (timer_page, get_workspaces_task) = timer_page::TimerPage::new(
+            integration_client.clone(),
+            state.clone(),
+            state_handler.clone(),
+        );
+
+        // let settings_page = SettingsPage::new(state.clone(), state_handler.clone());
 
         let get_existing_tracker_task: Task<Message> =
             cosmic::task::message(Message::GetExistingTracker);
@@ -226,9 +240,10 @@ impl cosmic::Application for AppletModel {
                 tab_model,
                 timer_page,
                 time_entries_page: time_entries_page::TimeEntriesPage::new(),
+                // settings_page,
                 state,
                 state_handler,
-                toggl_client,
+                integration_client,
             },
             startup_tasks,
         )
@@ -295,6 +310,18 @@ impl cosmic::Application for AppletModel {
                         }
                     })
             }
+            // Message::SettingsPage(message) => {
+            //     self.settings_page
+            //         .update(message)
+            //         .map(|action| match action {
+            //             cosmic::Action::None => cosmic::Action::None,
+            //             cosmic::Action::App(m) => cosmic::Action::App(m.into()),
+            //             cosmic::Action::Cosmic(a) => cosmic::Action::Cosmic(a),
+            //             cosmic::Action::DbusActivation(message) => {
+            //                 cosmic::Action::DbusActivation(message)
+            //             }
+            //         })
+            // }
             Message::CloseRequested(id) => {
                 if (Some(id)) == self.popup {
                     self.popup = None;
@@ -302,7 +329,7 @@ impl cosmic::Application for AppletModel {
                 Task::none()
             }
             Message::GetExistingTracker => {
-                let client = self.toggl_client.clone();
+                let client = self.integration_client.clone().expect("No client found.");
                 cosmic::task::future(async move {
                     let time_entry = client.get_current_time_entry().await;
                     match time_entry {
@@ -325,7 +352,7 @@ impl cosmic::Application for AppletModel {
                         selected_project_id = Some(selected_project.id.clone());
                     };
                     let current_description = self.state.current_description.clone();
-                    let client = self.toggl_client.clone();
+                    let client = self.integration_client.clone().expect("No client found.");
                     return cosmic::task::future(async move {
                         let time_entry = client
                             .start_new_time_entry(
@@ -350,7 +377,7 @@ impl cosmic::Application for AppletModel {
             }
             Message::StopTimer => {
                 if let Some(entry) = self.state.running_time_entry.clone() {
-                    let client = self.toggl_client.clone();
+                    let client = self.integration_client.clone().expect("No client found.");
                     return cosmic::task::future(async move {
                         let _ = client.stop_time_entry(entry.workspace_id, entry.id).await;
                         Message::TimerStopped

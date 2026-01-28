@@ -1,15 +1,22 @@
+use std::sync::Arc;
+
 use cosmic::{
     app,
     iced::{widget::column, Length},
     widget::{dropdown, text_input},
     Element, Task,
 };
-use tracker_integrations::{Project, TogglClient, Workspace};
+use tracker_integrations::{Authenticated, Project, TogglClient, Unauthenticated, Workspace};
 
 use crate::{
     applet::{self},
     config::GlobalState,
 };
+
+pub enum TrackerClientState {
+    Unauth(TogglClient<Unauthenticated>),
+    Auth(TogglClient<Authenticated>),
+}
 
 pub struct TimerPage {
     pub state: GlobalState,
@@ -17,7 +24,7 @@ pub struct TimerPage {
     current_workspace: Option<usize>,
     current_project: Option<usize>,
     current_description: Option<String>,
-    toggl_client: TogglClient,
+    integration_client: Option<Arc<TogglClient<Authenticated>>>,
 }
 
 #[derive(Debug, Clone)]
@@ -76,7 +83,7 @@ impl TimerPage {
     pub fn update(&mut self, message: Message) -> app::Task<Message> {
         match message {
             Message::GetWorkspaces => {
-                let client = self.toggl_client.clone();
+                let client = self.integration_client.clone().expect("No client found");
                 cosmic::task::future(async move {
                     let workspaces = client.get_user_workspaces().await;
                     match workspaces {
@@ -113,7 +120,7 @@ impl TimerPage {
                 Task::none()
             }
             Message::GetProjectsForWorkspace(workspace) => {
-                let client = self.toggl_client.clone();
+                let client = self.integration_client.clone().expect("No client found");
                 cosmic::task::future(async move {
                     let projects = client.get_workspace_projects(workspace.id).await;
                     match projects {
@@ -144,7 +151,7 @@ impl TimerPage {
         }
     }
     pub fn new(
-        toggl_client: TogglClient,
+        integration_client: Option<Arc<TogglClient<Authenticated>>>,
         state: GlobalState,
         state_handler: cosmic::cosmic_config::Config,
     ) -> (Self, Task<Message>) {
@@ -166,9 +173,9 @@ impl TimerPage {
 
         (
             TimerPage {
-                toggl_client,
                 state,
                 state_handler,
+                integration_client,
                 current_workspace,
                 current_project,
                 current_description: current_description,

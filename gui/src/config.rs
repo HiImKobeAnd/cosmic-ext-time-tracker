@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 use cosmic::cosmic_config::{self, cosmic_config_derive::CosmicConfigEntry, CosmicConfigEntry};
-use tracker_integrations::{Project, Tag, TimeEntry, Workspace};
+use tracker_integrations::{Integration, Project, Tag, TimeEntry, TogglClient, Workspace};
 
 pub const GLOBAL_STATE_VERSION: u64 = 1;
 
@@ -14,6 +14,7 @@ pub struct TrackerConfig {
 #[derive(Debug, Default, Clone, CosmicConfigEntry, Eq, PartialEq)]
 #[version = 1]
 pub struct GlobalState {
+    pub selected_tracker: Option<Integration>,
     pub running_time_entry: Option<TimeEntry>,
     pub selected_workspace: Option<Workspace>,
     pub selected_project: Option<Project>,
