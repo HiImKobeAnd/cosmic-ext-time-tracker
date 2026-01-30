@@ -2,14 +2,16 @@ use std::sync::Arc;
 
 use cosmic::{
     app,
-    iced::{widget::column, Length},
-    widget::{dropdown, text_input},
+    iced::{widget::column, widget::row, Length},
+    widget::{button, dropdown, icon, text_input, Button},
     Element, Task,
 };
-use tracker_integrations::{Authenticated, Project, TogglClient, Unauthenticated, Workspace};
+use tracker_integrations::{
+    Authenticated, Project, TimeEntry, TogglClient, Unauthenticated, Workspace,
+};
 
 use crate::{
-    applet::{self, Authentication},
+    applet::{self, AppletModel, Authentication},
     config::GlobalState,
 };
 
@@ -29,7 +31,6 @@ pub struct TimerPage {
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    // TaskTextChanged(String),
     GetWorkspaces,
     WorkspacesGotten(Option<Vec<Workspace>>),
     WorkspaceSelected(usize),
@@ -37,6 +38,9 @@ pub enum Message {
     GetProjectsForWorkspace(Workspace),
     ProjectsGotten(Option<Vec<Project>>),
     DescriptionChanged(String),
+    // TODO Duplicate of applet messages
+    GetExistingTimeEntry,
+    ExistingTimeEntryGotten(Option<TimeEntry>),
 }
 
 impl From<Message> for applet::Message {
@@ -72,10 +76,14 @@ impl TimerPage {
         )
         .on_input(Message::DescriptionChanged);
 
+        let refetch_existing_timer = button::icon(icon::from_name("object-rotate-left-symbolic"))
+            .on_press(Message::GetExistingTimeEntry);
+
         Element::from(column![
             workspace_selector.width(Length::Fill),
             project_selector.width(Length::Fill),
             description_input.width(Length::Fill),
+            row![refetch_existing_timer].width(Length::Fill),
         ])
         // .explain(cosmic::iced::Color::WHITE)
     }
@@ -156,6 +164,27 @@ impl TimerPage {
                 let _ = self
                     .state
                     .set_current_description(&self.state_handler, desc);
+                Task::none()
+            }
+            Message::GetExistingTimeEntry => self
+                .integration_client
+                .as_ref()
+                .and_then(|auth| auth.as_authenticated())
+                .map(|client| {
+                    cosmic::task::future(async move {
+                        let time_entry = client.get_current_time_entry().await;
+                        match time_entry {
+                            Ok(entry) => Message::ExistingTimeEntryGotten(entry),
+                            Err(_) => Message::ExistingTimeEntryGotten(None),
+                        }
+                    })
+                })
+                .unwrap_or(Task::none()),
+
+            Message::ExistingTimeEntryGotten(time_entry) => {
+                let _ = self
+                    .state
+                    .set_running_time_entry(&self.state_handler, time_entry);
                 Task::none()
             }
         }

@@ -103,8 +103,8 @@ pub enum Message {
     TimerPage(timer_page::Message),
     TimeEntriesPage(time_entries_page::Message),
     SettingsPage(settings_page::Message),
-    GetExistingTracker,
-    ExistingTrackerGotten(Option<TimeEntry>),
+    GetExistingTimeEntry,
+    ExistingTimeEntryGotten(Option<TimeEntry>),
     StartTimer,
     TimerStarted(TimeEntry),
     StopTimer,
@@ -245,7 +245,7 @@ impl cosmic::Application for AppletModel {
         let settings_page = SettingsPage::new(state.clone(), state_handler.clone());
 
         let get_existing_tracker_task: Task<Message> =
-            cosmic::task::message(Message::GetExistingTracker);
+            cosmic::task::message(Message::GetExistingTimeEntry);
         let startup_tasks = cosmic::task::batch([
             get_existing_tracker_task,
             get_workspaces_task.map(self::Message::TimerPage),
@@ -348,7 +348,7 @@ impl cosmic::Application for AppletModel {
                 }
                 Task::none()
             }
-            Message::GetExistingTracker => self
+            Message::GetExistingTimeEntry => self
                 .integration_client
                 .as_ref()
                 .and_then(|auth| auth.as_authenticated())
@@ -356,14 +356,14 @@ impl cosmic::Application for AppletModel {
                     cosmic::task::future(async move {
                         let time_entry = client.get_current_time_entry().await;
                         match time_entry {
-                            Ok(entry) => Message::ExistingTrackerGotten(entry),
-                            Err(_) => Message::ExistingTrackerGotten(None),
+                            Ok(entry) => Message::ExistingTimeEntryGotten(entry),
+                            Err(_) => Message::ExistingTimeEntryGotten(None),
                         }
                     })
                 })
                 .unwrap_or(Task::none()),
 
-            Message::ExistingTrackerGotten(time_entry) => {
+            Message::ExistingTimeEntryGotten(time_entry) => {
                 let _ = self
                     .state
                     .set_running_time_entry(&self.state_handler, time_entry);
