@@ -5,6 +5,19 @@ use core::fmt;
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum Integration {
+    TogglIntegration,
+}
+
+impl std::fmt::Display for Integration {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::TogglIntegration => "Toggl Track",
+        })
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 #[serde(untagged)]
 pub enum ApiId {

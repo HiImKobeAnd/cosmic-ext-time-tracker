@@ -8,6 +8,7 @@ use std::io::{self, Write, stdin, stdout};
 
 use crate::{
     authentication::{get_api_key, set_api_key},
+    models::Integration,
     toggl_integration::TogglClient,
 };
 
@@ -49,7 +50,7 @@ async fn main() {
 
 fn ensure_api_key() -> io::Result<()> {
     dbg!("Ensure api key");
-    let key = get_api_key();
+    let key = get_api_key(&Integration::TogglIntegration);
     if key.is_ok() {
         return Ok(());
     }
@@ -58,6 +59,6 @@ fn ensure_api_key() -> io::Result<()> {
     stdout().flush()?;
     stdin().read_line(&mut buf)?;
     let trimmed = buf.trim().to_string();
-    set_api_key(trimmed.clone()).unwrap();
+    set_api_key(&Integration::TogglIntegration, trimmed.clone()).unwrap();
     Ok(())
 }

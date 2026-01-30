@@ -8,10 +8,4 @@ mod toggl_integration;
 
 pub use authentication::*;
 pub use models::*;
-use serde::{Deserialize, Serialize};
 pub use toggl_integration::*;
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum Integration {
-    TogglIntegration,
-}

@@ -5,10 +5,7 @@ use reqwest::{Client, header::CONTENT_TYPE};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::{
-    authentication::{self},
-    models::{ApiId, Project, Tag, TimeEntry, Workspace},
-};
+use crate::models::{ApiId, Project, Tag, TimeEntry, Workspace};
 
 pub struct Unauthenticated;
 #[derive(Clone)]
