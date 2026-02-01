@@ -23,7 +23,9 @@ use std::{
     time::Duration,
 };
 use tracker_integrations::{
-    get_api_key, Authenticated, Integration, TimeEntry, TogglClient, Unauthenticated,
+    authentication::get_api_key,
+    models::{Integration, TimeEntry},
+    toggl_integration::{Authenticated, TogglClient},
 };
 
 use crate::{
@@ -66,32 +68,27 @@ pub enum SubscriptionId {
     StateWatch,
 }
 
-pub enum Authentication {
-    Auth(TogglClient<Authenticated>),
-    UnAuth(TogglClient<Unauthenticated>),
-}
-
-impl Authentication {
-    pub fn as_authenticated(&self) -> Option<TogglClient<Authenticated>> {
-        match self {
-            Authentication::Auth(client) => Some(client.clone()),
-            _ => None,
-        }
-    }
+pub enum AppState {
+    Auth(AuthenticatedSession),
+    UnAuth,
 }
 
 pub struct AppletModel {
     core: cosmic::Core,
+    locale: Locale,
     state: GlobalState,
     state_handler: cosmic::cosmic_config::Config,
-    locale: Locale,
     tab_model: segmented_button::SingleSelectModel,
     popup: Option<window::Id>,
+    settings_page: settings_page::SettingsPage,
+    app_state: AppState,
+}
+
+pub struct AuthenticatedSession {
     popup_page: Page,
     timer_page: timer_page::TimerPage,
     time_entries_page: time_entries_page::TimeEntriesPage,
-    settings_page: settings_page::SettingsPage,
-    integration_client: Option<Arc<Authentication>>,
+    integration_client: Arc<TogglClient<Authenticated>>,
 }
 
 #[derive(Debug, Clone)]
@@ -156,33 +153,42 @@ fn color_circle(color: Color, size: f32) -> Element<'static, Message> {
 
 impl AppletModel {
     fn horizontal_layout(&self) -> Element<'_, Message> {
-        let applet_height: f32 = self.core.applet.suggested_size(true).1.into();
-        let mut project_indicator = color_circle(Color::WHITE, 32.);
-        if let Some(selected_project) = self.state.selected_project.clone() {
-            project_indicator = color_circle(
-                Color::parse(&selected_project.color).unwrap_or(Color::WHITE),
-                applet_height / 2.,
-            )
-        };
-
-        let counter = match &self.state.running_time_entry {
-            Some(entry) => button::custom(Text::new(format_duration(
-                &Utc::now().signed_duration_since(entry.start_time),
-            )))
-            .on_press(Message::StopTimer)
-            .class(cosmic::theme::Button::AppletIcon),
-            None => button::custom(Text::new(format_duration(&TimeDelta::zero())))
-                .on_press(Message::StartTimer)
-                .class(cosmic::theme::Button::AppletIcon),
-        };
-
         let popup_toggle_button = button::icon(icon::from_name("open-menu-symbolic"))
             .on_press(Message::TogglePopup)
             .class(cosmic::theme::Button::AppletIcon);
-        Element::from(
-            row!(project_indicator, counter, popup_toggle_button,).align_y(Alignment::Center),
-        )
-        // .explain(cosmic::iced::Color::WHITE)
+
+        match &self.app_state {
+            AppState::UnAuth => {
+                Element::from(row!(popup_toggle_button,).align_y(Alignment::Center))
+                // .explain(cosmic::iced::Color::WHITE)
+            }
+            AppState::Auth(_) => {
+                let applet_height: f32 = self.core.applet.suggested_size(true).1.into();
+                let mut project_indicator = color_circle(Color::WHITE, 32.);
+                if let Some(selected_project) = self.state.selected_project.clone() {
+                    project_indicator = color_circle(
+                        Color::parse(&selected_project.color).unwrap_or(Color::WHITE),
+                        applet_height / 2.,
+                    )
+                };
+                let counter = match &self.state.running_time_entry {
+                    Some(entry) => button::custom(Text::new(format_duration(
+                        &Utc::now().signed_duration_since(entry.start_time),
+                    )))
+                    .on_press(Message::StopTimer)
+                    .class(cosmic::theme::Button::AppletIcon),
+                    None => button::custom(Text::new(format_duration(&TimeDelta::zero())))
+                        .on_press(Message::StartTimer)
+                        .class(cosmic::theme::Button::AppletIcon),
+                };
+
+                Element::from(
+                    row!(project_indicator, counter, popup_toggle_button,)
+                        .align_y(Alignment::Center),
+                )
+                // .explain(cosmic::iced::Color::WHITE)
+            }
+        }
     }
 }
 
@@ -205,8 +211,44 @@ impl cosmic::Application for AppletModel {
     }
 
     fn init(core: app::Core, _flags: Self::Flags) -> (Self, app::Task<self::Message>) {
-        let mut tab_model = segmented_button::SingleSelectModel::default();
+        let state_handler = cosmic::cosmic_config::Config::new(Self::APP_ID, GLOBAL_STATE_VERSION)
+            .expect("Failed to init config.");
 
+        let state = GlobalState::get_entry(&state_handler).unwrap_or_default();
+
+        let mut startup_tasks: Vec<Task<Message>> = Vec::new();
+
+        let mut app_state = AppState::UnAuth;
+        if let Some(selected_tracker) = &state.selected_tracker {
+            if let Ok(api_key) = get_api_key(&selected_tracker) {
+                let integration_client = match selected_tracker {
+                    Integration::TogglIntegration => {
+                        let client = TogglClient::new();
+                        let auth = client.authenticate(api_key);
+                        Arc::new(auth)
+                    }
+                };
+
+                let (timer_page, get_workspaces_task) = timer_page::TimerPage::new(
+                    integration_client.clone(),
+                    state.clone(),
+                    state_handler.clone(),
+                );
+                let get_existing_tracker_task: Task<Message> =
+                    cosmic::task::message(Message::GetExistingTimeEntry);
+                startup_tasks.push(get_existing_tracker_task);
+                startup_tasks.push(get_workspaces_task.map(self::Message::TimerPage));
+
+                app_state = AppState::Auth(AuthenticatedSession {
+                    popup_page: Page::Timer,
+                    timer_page,
+                    time_entries_page: time_entries_page::TimeEntriesPage::new(),
+                    integration_client,
+                });
+            }
+        }
+
+        let mut tab_model = segmented_button::SingleSelectModel::default();
         tab_model
             .insert()
             .text("Timer")
@@ -218,54 +260,20 @@ impl cosmic::Application for AppletModel {
             .text("Settings")
             .data::<Page>(Page::Settings);
 
-        let state_handler = cosmic::cosmic_config::Config::new(Self::APP_ID, GLOBAL_STATE_VERSION)
-            .expect("Failed to init config.");
-
-        let state = GlobalState::get_entry(&state_handler).unwrap_or_default();
-
-        let integration_client =
-            state
-                .clone()
-                .selected_tracker
-                .map(|Integration::TogglIntegration| {
-                    let client = TogglClient::new();
-                    let auth = match get_api_key(&Integration::TogglIntegration) {
-                        Ok(api_key) => Authentication::Auth(client.authenticate(api_key)),
-                        Err(_) => Authentication::UnAuth(client),
-                    };
-                    Arc::new(auth)
-                });
-
-        let (timer_page, get_workspaces_task) = timer_page::TimerPage::new(
-            integration_client.clone(),
-            state.clone(),
-            state_handler.clone(),
-        );
-
         let settings_page = SettingsPage::new(state.clone(), state_handler.clone());
-
-        let get_existing_tracker_task: Task<Message> =
-            cosmic::task::message(Message::GetExistingTimeEntry);
-        let startup_tasks = cosmic::task::batch([
-            get_existing_tracker_task,
-            get_workspaces_task.map(self::Message::TimerPage),
-        ]);
 
         (
             Self {
                 core,
                 popup: None,
                 locale: get_system_locale(),
-                popup_page: Page::Timer,
                 tab_model,
-                timer_page,
-                time_entries_page: time_entries_page::TimeEntriesPage::new(),
                 settings_page,
+                app_state,
                 state,
                 state_handler,
-                integration_client,
             },
-            startup_tasks,
+            cosmic::task::batch(startup_tasks),
         )
     }
 
@@ -281,8 +289,8 @@ impl cosmic::Application for AppletModel {
     }
 
     fn update(&mut self, message: Self::Message) -> app::Task<Self::Message> {
-        match message {
-            Message::TogglePopup => {
+        match (&mut self.app_state, message) {
+            (_, Message::TogglePopup) => {
                 if let Some(p) = self.popup.take() {
                     destroy_popup(p)
                 } else {
@@ -300,37 +308,37 @@ impl cosmic::Application for AppletModel {
                     get_popup(popup_settings)
                 }
             }
-            Message::TabChanged(entity) => {
+            (_, Message::Tick) => Task::none(),
+            (AppState::Auth(session), Message::TabChanged(entity)) => {
                 self.tab_model.activate(entity);
                 if let Some(page) = self.tab_model.data::<Page>(entity) {
-                    self.popup_page = page.clone();
+                    session.popup_page = page.clone();
                 }
                 Task::none()
             }
-            Message::Tick => Task::none(),
-            Message::TimerPage(message) => {
-                self.timer_page.update(message).map(|action| match action {
+            (AppState::Auth(session), Message::TimerPage(message)) => session
+                .timer_page
+                .update(message)
+                .map(|action| match action {
                     cosmic::Action::None => cosmic::Action::None,
                     cosmic::Action::App(m) => cosmic::Action::App(m.into()),
                     cosmic::Action::Cosmic(a) => cosmic::Action::Cosmic(a),
                     cosmic::Action::DbusActivation(message) => {
                         cosmic::Action::DbusActivation(message)
                     }
-                })
-            }
-            Message::TimeEntriesPage(message) => {
-                self.time_entries_page
-                    .update(message)
-                    .map(|action| match action {
-                        cosmic::Action::None => cosmic::Action::None,
-                        cosmic::Action::App(m) => cosmic::Action::App(m.into()),
-                        cosmic::Action::Cosmic(a) => cosmic::Action::Cosmic(a),
-                        cosmic::Action::DbusActivation(message) => {
-                            cosmic::Action::DbusActivation(message)
-                        }
-                    })
-            }
-            Message::SettingsPage(message) => {
+                }),
+            (AppState::Auth(session), Message::TimeEntriesPage(message)) => session
+                .time_entries_page
+                .update(message)
+                .map(|action| match action {
+                    cosmic::Action::None => cosmic::Action::None,
+                    cosmic::Action::App(m) => cosmic::Action::App(m.into()),
+                    cosmic::Action::Cosmic(a) => cosmic::Action::Cosmic(a),
+                    cosmic::Action::DbusActivation(message) => {
+                        cosmic::Action::DbusActivation(message)
+                    }
+                }),
+            (_, Message::SettingsPage(message)) => {
                 self.settings_page
                     .update(message)
                     .map(|action| match action {
@@ -342,34 +350,29 @@ impl cosmic::Application for AppletModel {
                         }
                     })
             }
-            Message::CloseRequested(id) => {
+            (_, Message::CloseRequested(id)) => {
                 if (Some(id)) == self.popup {
                     self.popup = None;
                 }
                 Task::none()
             }
-            Message::GetExistingTimeEntry => self
-                .integration_client
-                .as_ref()
-                .and_then(|auth| auth.as_authenticated())
-                .map(|client| {
-                    cosmic::task::future(async move {
-                        let time_entry = client.get_current_time_entry().await;
-                        match time_entry {
-                            Ok(entry) => Message::ExistingTimeEntryGotten(entry),
-                            Err(_) => Message::ExistingTimeEntryGotten(None),
-                        }
-                    })
+            (AppState::Auth(session), Message::GetExistingTimeEntry) => {
+                let client = session.integration_client.clone();
+                cosmic::task::future(async move {
+                    let time_entry = client.get_current_time_entry().await;
+                    match time_entry {
+                        Ok(entry) => Message::ExistingTimeEntryGotten(entry),
+                        Err(_) => Message::ExistingTimeEntryGotten(None),
+                    }
                 })
-                .unwrap_or(Task::none()),
-
-            Message::ExistingTimeEntryGotten(time_entry) => {
+            }
+            (AppState::Auth(_), Message::ExistingTimeEntryGotten(time_entry)) => {
                 let _ = self
                     .state
                     .set_running_time_entry(&self.state_handler, time_entry);
                 Task::none()
             }
-            Message::StartTimer => {
+            (AppState::Auth(session), Message::StartTimer) => {
                 if let Some(selected_workspace) = &self.state.selected_workspace {
                     let selected_workspace_id = selected_workspace.id.clone();
                     let mut selected_project_id = None;
@@ -377,77 +380,64 @@ impl cosmic::Application for AppletModel {
                         selected_project_id = Some(selected_project.id.clone());
                     };
                     let current_description = self.state.current_description.clone();
-                    return self
-                        .integration_client
-                        .as_ref()
-                        .and_then(|auth| auth.as_authenticated())
-                        .map(|client| {
-                            return cosmic::task::future(async move {
-                                let time_entry = client
-                                    .start_new_time_entry(
-                                        selected_workspace_id,
-                                        selected_project_id,
-                                        current_description,
-                                    )
-                                    .await;
-                                if let Ok(time_entry) = time_entry {
-                                    return Message::TimerStarted(time_entry);
-                                }
-                                Message::Tick
-                            });
-                        })
-                        .unwrap_or(Task::none());
+                    let client = session.integration_client.clone();
+                    return cosmic::task::future(async move {
+                        let time_entry = client
+                            .start_new_time_entry(
+                                selected_workspace_id,
+                                selected_project_id,
+                                current_description,
+                            )
+                            .await;
+                        if let Ok(time_entry) = time_entry {
+                            return Message::TimerStarted(time_entry);
+                        }
+                        Message::Tick
+                    });
                 }
                 Task::none()
             }
-            Message::TimerStarted(time_entry) => {
+            (AppState::Auth(_), Message::TimerStarted(time_entry)) => {
                 let _ = self
                     .state
                     .set_running_time_entry(&self.state_handler, Some(time_entry));
                 Task::none()
             }
-            Message::StopTimer => {
+            (AppState::Auth(session), Message::StopTimer) => {
                 if let Some(entry) = self.state.running_time_entry.clone() {
-                    return self
-                        .integration_client
-                        .as_ref()
-                        .and_then(|auth| auth.as_authenticated())
-                        .map(|client| {
-                            return cosmic::task::future(async move {
-                                let _ = client.stop_time_entry(entry.workspace_id, entry.id).await;
-                                Message::TimerStopped
-                            });
-                        })
-                        .unwrap_or(Task::none());
+                    let client = session.integration_client.clone();
+                    return cosmic::task::future(async move {
+                        let _ = client.stop_time_entry(entry.workspace_id, entry.id).await;
+                        Message::TimerStopped
+                    });
                 }
                 Task::none()
             }
-            Message::TimerStopped => {
+            (AppState::Auth(_), Message::TimerStopped) => {
                 let _ = self.state.set_running_time_entry(&self.state_handler, None);
                 Task::none()
             }
-            Message::StateChanged(state) => {
+            (AppState::Auth(session), Message::StateChanged(state)) => {
                 tracing::info!("State changed.");
                 if self.state.selected_tracker != state.selected_tracker {
-                    self.integration_client =
-                        state
-                            .clone()
-                            .selected_tracker
-                            .map(|Integration::TogglIntegration| {
-                                let client = TogglClient::new();
-                                let auth = match get_api_key(&Integration::TogglIntegration) {
-                                    Ok(api_key) => {
-                                        Authentication::Auth(client.authenticate(api_key))
-                                    }
-                                    Err(_) => Authentication::UnAuth(client),
-                                };
-                                Arc::new(auth)
-                            });
+                    if let Some(selected_tracker) = &state.selected_tracker {
+                        if let Ok(api_key) = get_api_key(&selected_tracker) {
+                            let integration_client = match selected_tracker {
+                                Integration::TogglIntegration => {
+                                    let client = TogglClient::new();
+                                    client.authenticate(api_key)
+                                }
+                            };
+                            session.integration_client = Arc::new(integration_client);
+                        }
+                    }
                 }
                 self.state = state.clone();
-                self.timer_page.state = state;
+                self.settings_page.state = state.clone();
+                session.timer_page.state = state;
                 Task::none()
             }
+            _ => Task::none(),
         }
     }
     fn view(&self) -> cosmic::Element<'_, Self::Message> {
@@ -456,10 +446,16 @@ impl cosmic::Application for AppletModel {
 
     fn view_window(&self, id: window::Id) -> Element<'_, Self::Message> {
         let Spacing { .. } = theme::active().cosmic().spacing;
-        let content = match self.popup_page {
-            Page::Timer => self.timer_page.view().map(Message::TimerPage),
-            Page::Log => self.time_entries_page.view().map(Message::TimeEntriesPage),
-            Page::Settings => self.settings_page.view().map(Message::SettingsPage),
+        let content = match &self.app_state {
+            AppState::Auth(session) => match session.popup_page {
+                Page::Timer => session.timer_page.view().map(Message::TimerPage),
+                Page::Log => session
+                    .time_entries_page
+                    .view()
+                    .map(Message::TimeEntriesPage),
+                Page::Settings => self.settings_page.view().map(Message::SettingsPage),
+            },
+            AppState::UnAuth => self.settings_page.view().map(Message::SettingsPage),
         };
 
         let tab_bar = tab_bar::horizontal(&self.tab_model).on_activate(Message::TabChanged);

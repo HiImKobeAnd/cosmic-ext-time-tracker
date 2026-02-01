@@ -2,10 +2,7 @@
 
 extern crate serde_json;
 
-mod authentication;
-mod models;
-mod toggl_integration;
-
-pub use authentication::*;
-pub use models::*;
-pub use toggl_integration::*;
+pub mod authentication;
+pub mod kimai_integration;
+pub mod models;
+pub mod toggl_integration;

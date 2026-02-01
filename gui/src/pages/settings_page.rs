@@ -4,7 +4,7 @@ use cosmic::{
     iced_widget::{pick_list, text_input},
     Element, Task,
 };
-use tracker_integrations::{set_api_key, Integration};
+use tracker_integrations::{authentication::set_api_key, models::Integration};
 
 use crate::{applet, config::GlobalState};
 
