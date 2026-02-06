@@ -6246,6 +6246,7 @@ dependencies = [
 name = "tracker-integrations"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "chrono",
  "keyring",
  "reqwest",

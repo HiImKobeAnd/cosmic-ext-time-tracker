@@ -1,15 +1,10 @@
 // SPDX-License-Identifier: MPL-2.0
 
-mod authentication;
-mod models;
-mod toggl_integration;
-
 use std::io::{self, Write, stdin, stdout};
 
-use crate::{
+use tracker_integrations::{
     authentication::{get_api_key, set_api_key},
     models::Integration,
-    toggl_integration::TogglClient,
 };
 
 // Note for manual testing

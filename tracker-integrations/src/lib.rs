@@ -3,6 +3,7 @@
 extern crate serde_json;
 
 pub mod authentication;
+pub mod integration;
 pub mod kimai_integration;
 pub mod models;
 pub mod toggl_integration;
