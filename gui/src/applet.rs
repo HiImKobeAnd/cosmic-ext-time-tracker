@@ -223,13 +223,21 @@ impl AppletModel {
             }
             AppState::Auth(_) => {
                 let applet_height: f32 = self.core.applet.suggested_size(true).1.into();
-                let mut project_indicator = color_circle(Color::WHITE, applet_height / 2.);
-                if let Some(selected_project) = self.state.selected_project.clone() {
-                    project_indicator = color_circle(
-                        Color::parse(&selected_project.color).unwrap_or(Color::WHITE),
-                        applet_height / 2.,
-                    )
-                };
+                let indicator_color = self
+                    .state
+                    .selected_tracker
+                    .as_ref()
+                    .and_then(|selected_tracker| match selected_tracker {
+                        Integration::TogglIntegration => {
+                            self.state.selected_project.as_ref().map(|p| &p.color)
+                        }
+                        Integration::KimaiIntegration => {
+                            self.state.selected_activity.as_ref().map(|a| &a.color)
+                        }
+                    })
+                    .and_then(|hex| Color::parse(hex))
+                    .unwrap_or(Color::WHITE);
+                let project_indicator = color_circle(indicator_color, applet_height / 2.);
                 let counter = match &self.state.running_time_entry {
                     Some(entry) => button::custom(Text::new(format_duration(
                         &Utc::now().signed_duration_since(entry.start_time),

@@ -118,6 +118,7 @@ impl From<KimaiActivity> for Activity {
             id: ApiId::Int(raw.id),
             name: raw.name,
             project_id: ApiId::Int(raw.project),
+            color: raw.color.unwrap_or("ffffff".to_string()),
         }
     }
 }
@@ -192,16 +193,16 @@ impl TrackerIntegration for KimaiClient<Authenticated> {
         project_id: ApiId,
     ) -> Result<Vec<Activity>, reqwest::Error> {
         tracing::info!("Getting project activities.");
-        let body = json!({
-            "project": project_id,
-        });
-
         let resp: Vec<KimaiActivity> = self
             .client
-            .get(self.auth_state.base_url.join("api/activities").unwrap())
+            .get(
+                self.auth_state
+                    .base_url
+                    .join(&format!("api/activities?project={}", project_id))
+                    .unwrap(),
+            )
             .bearer_auth(&self.auth_state.api_key)
             .header(CONTENT_TYPE, "application/json")
-            .json(&body)
             .send()
             .await?
             .json()

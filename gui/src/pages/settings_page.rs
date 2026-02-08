@@ -52,7 +52,7 @@ impl SettingsPage {
             .on_input(Message::APIKeyInput)
             .on_submit(Message::APIKeySubmitted);
 
-        // TODO Add submit button which changes color based on api_key validity.
+        // TODO Add submit button which changes color based on api_key and url validity.
 
         let mut elements = Vec::new();
 

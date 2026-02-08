@@ -64,6 +64,7 @@ pub struct Activity {
     pub id: ApiId,
     pub name: String,
     pub project_id: ApiId,
+    pub color: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Default)]

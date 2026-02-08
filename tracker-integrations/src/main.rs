@@ -2,6 +2,7 @@
 
 use std::io::{self, Write, stdin, stdout};
 
+use keyring::Entry;
 use tracker_integrations::{
     authentication::{get_api_key, set_api_key},
     models::Integration,
@@ -14,6 +15,11 @@ async fn main() {
     // let _ = tracing_log::LogTracer::init();
 
     // tracing::info!("Staring time tracker applet with version {VERSION}");
+
+    let tracker = Integration::KimaiIntegration;
+    let tracker_name = tracker.to_string().replace(" ", "-").to_lowercase() + "-api-key";
+    let entry = Entry::new("cosmic-ext-time-tracker", &tracker_name).unwrap();
+    let key = entry.delete_credential();
 
     ensure_api_key().expect("Could not ensure API key.");
     // let workspaces = TogglClient::get_user_workspaces()
