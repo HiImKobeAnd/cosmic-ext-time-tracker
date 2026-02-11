@@ -1,16 +1,23 @@
 use cosmic::{
     app,
-    iced::{widget::column, Length},
-    iced_widget::{pick_list, text_input},
+    iced::Length,
+    iced_widget::{button, pick_list, text_input},
     widget::Column,
     Element, Task,
 };
 use tracker_integrations::{
-    authentication::{get_integration_url, set_api_key, set_integration_url},
+    authentication::{get_api_key, get_integration_url, set_api_key, set_integration_url},
+    integration::TrackerIntegration,
     models::Integration,
+    toggl_integration::TogglClient,
 };
 
 use crate::{applet, config::GlobalState};
+
+enum AuthenticationStatus {
+    Success,
+    Failure,
+}
 
 pub struct SettingsPage {
     pub state: GlobalState,
@@ -19,6 +26,7 @@ pub struct SettingsPage {
     selected_tracker: Option<Integration>,
     api_key: String,
     integration_url: String,
+    authentication_status: AuthenticationStatus,
 }
 
 #[derive(Debug, Clone)]
@@ -28,6 +36,7 @@ pub enum Message {
     APIKeySubmitted,
     IntegrationUrlInput(String),
     IntegrationUrlSubmitted,
+    // ValidateAuthentication,
 }
 
 impl From<Message> for applet::Message {
@@ -52,7 +61,7 @@ impl SettingsPage {
             .on_input(Message::APIKeyInput)
             .on_submit(Message::APIKeySubmitted);
 
-        // TODO Add submit button which changes color based on api_key and url validity.
+        // let authenticate_button = button("authenticate").on_press(Message::ValidateAuthentication);
 
         let mut elements = Vec::new();
 
@@ -68,6 +77,7 @@ impl SettingsPage {
                     elements.push(api_key_input.width(Length::Fill).into());
                 }
             }
+            // elements.push(authenticate_button.width(Length::Fill).into());
         }
 
         Element::from(Column::new().extend(elements))
@@ -111,7 +121,6 @@ impl SettingsPage {
             .as_ref()
             .and_then(|tracker| get_integration_url(tracker).ok())
             .unwrap_or_default();
-
         SettingsPage {
             state,
             state_handler,
@@ -119,6 +128,7 @@ impl SettingsPage {
             selected_tracker,
             api_key: String::default(),
             integration_url: integration_url,
+            authentication_status: AuthenticationStatus::Failure,
         }
     }
 }

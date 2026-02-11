@@ -8,6 +8,7 @@ use crate::models::{
 
 #[async_trait]
 pub trait TrackerIntegration {
+    async fn validate_authentication(&self) -> bool;
     async fn get_current_time_entry(&self) -> Result<Option<TimeEntry>, reqwest::Error>;
     async fn get_project_activities(
         &self,

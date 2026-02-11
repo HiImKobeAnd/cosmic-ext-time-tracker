@@ -153,6 +153,18 @@ impl From<KimaiTimeEntry> for TimeEntry {
 
 #[async_trait]
 impl TrackerIntegration for KimaiClient<Authenticated> {
+    async fn validate_authentication(&self) -> bool {
+        tracing::info!("Checking authentication of Kimai");
+        let resp = self
+            .client
+            .get(self.auth_state.base_url.join("api/users/me").unwrap())
+            .bearer_auth(&self.auth_state.api_key)
+            .header(CONTENT_TYPE, "application/json")
+            .send()
+            .await
+            .expect("1");
+        resp.status().is_success()
+    }
     async fn get_current_time_entry(&self) -> Result<Option<TimeEntry>, reqwest::Error> {
         tracing::info!("Getting current time entry.");
         let resp: Vec<KimaiTimeEntryExpanded> = self
