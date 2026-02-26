@@ -21,11 +21,10 @@ pub struct TogglClient {
 
 impl TogglClient {
     pub async fn authenticate(
-        client: reqwest::Client,
         api_key: String,
     ) -> Result<TogglClient, Box<dyn Error + Send + Sync + 'static>> {
         let integration = TogglClient {
-            client: client,
+            client: Client::new(),
             api_key,
         };
         match integration.validate_authentication().await {

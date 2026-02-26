@@ -22,13 +22,12 @@ pub struct KimaiClient {
 
 impl KimaiClient {
     pub async fn authenticate(
-        client: reqwest::Client,
         api_key: String,
         base_url: &str,
     ) -> Result<KimaiClient, Box<dyn Error + Send + Sync + 'static>> {
         let base_url = Url::parse(base_url).expect("Invalid URL input."); // Todo
         let integration = KimaiClient {
-            client,
+            client: Client::new(),
             api_key,
             base_url,
         };
