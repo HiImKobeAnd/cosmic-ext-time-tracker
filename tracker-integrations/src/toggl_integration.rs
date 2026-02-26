@@ -13,31 +13,24 @@ use crate::{
     models::{ApiId, Project, ProjectContext, Tag, TimeEntry, TimeEntryContext, Workspace},
 };
 
-pub struct Unauthenticated;
 #[derive(Clone)]
-pub struct Authenticated {
+pub struct TogglClient {
+    client: Client,
     api_key: String,
 }
 
-#[derive(Clone)]
-pub struct TogglClient<Auth> {
-    client: Client,
-    auth_state: Auth,
-}
-
-impl TogglClient<Unauthenticated> {
-    pub fn new() -> Self {
-        tracing::info!("Creating new Toggl Client.");
-        Self {
-            client: Client::new(),
-            auth_state: Unauthenticated,
-        }
-    }
-
-    pub fn authenticate(self, api_key: String) -> TogglClient<Authenticated> {
-        TogglClient {
+impl TogglClient {
+    pub async fn authenticate(
+        self,
+        api_key: String,
+    ) -> Result<TogglClient, Box<dyn Error + Send + Sync + 'static>> {
+        let integration = TogglClient {
             client: self.client,
-            auth_state: Authenticated { api_key },
+            api_key,
+        };
+        match integration.validate_authentication().await {
+            true => return Ok(integration),
+            false => return Err("Test".into()),
         }
     }
 }
@@ -131,13 +124,13 @@ impl From<TogglTimeEntry> for TimeEntry {
 }
 
 #[async_trait]
-impl TrackerIntegration for TogglClient<Authenticated> {
+impl TrackerIntegration for TogglClient {
     async fn validate_authentication(&self) -> bool {
         tracing::info!("Checking authentication of Toggl Track");
         let resp = self
             .client
             .get("https://api.track.toggl.com/api/v9/me")
-            .bearer_auth(&self.auth_state.api_key)
+            .bearer_auth(&self.api_key)
             .header(CONTENT_TYPE, "application/json")
             .send()
             .await
@@ -149,7 +142,7 @@ impl TrackerIntegration for TogglClient<Authenticated> {
         let resp: Option<TogglTimeEntry> = self
             .client
             .get("https://api.track.toggl.com/api/v9/me/time_entries/current")
-            .basic_auth(&self.auth_state.api_key, Some("api_token"))
+            .basic_auth(&self.api_key, Some("api_token"))
             .header(CONTENT_TYPE, "application/json")
             .send()
             .await?
@@ -166,7 +159,7 @@ impl TrackerIntegration for TogglClient<Authenticated> {
         let resp: Vec<TogglWorkspace> = self
             .client
             .get("https://api.track.toggl.com/api/v9/me/workspaces")
-            .basic_auth(&self.auth_state.api_key, Some("api_token"))
+            .basic_auth(&self.api_key, Some("api_token"))
             .header(CONTENT_TYPE, "application/json")
             .send()
             .await?
@@ -192,7 +185,7 @@ impl TrackerIntegration for TogglClient<Authenticated> {
                     "https://api.track.toggl.com/api/v9/workspaces/{}/time_entries/{}/stop",
                     workspace_id, time_entry_id
                 ))
-                .basic_auth(&self.auth_state.api_key, Some("api_token"))
+                .basic_auth(&self.api_key, Some("api_token"))
                 .header(CONTENT_TYPE, "application/json")
                 .send()
                 .await?;
@@ -228,7 +221,7 @@ impl TrackerIntegration for TogglClient<Authenticated> {
                     "https://api.track.toggl.com/api/v9/workspaces/{}/time_entries",
                     workspace_id
                 ))
-                .basic_auth(&self.auth_state.api_key, Some("api_token"))
+                .basic_auth(&self.api_key, Some("api_token"))
                 .header(CONTENT_TYPE, "application/json")
                 .json(&body)
                 .send()
@@ -267,7 +260,7 @@ impl TrackerIntegration for TogglClient<Authenticated> {
                 .get(format!(
                     "https://api.track.toggl.com/api/v9/workspaces/{workspace_id}/projects"
                 ))
-                .basic_auth(&self.auth_state.api_key, Some("api_token"))
+                .basic_auth(&self.api_key, Some("api_token"))
                 .header(CONTENT_TYPE, "application/json")
                 .send()
                 .await?

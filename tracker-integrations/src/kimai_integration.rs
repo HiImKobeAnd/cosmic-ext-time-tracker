@@ -13,33 +13,28 @@ use crate::{
     models::{Activity, ApiId, Project, ProjectContext, Tag, TimeEntry, TimeEntryContext},
 };
 
-pub struct Unauthenticated;
 #[derive(Clone)]
-pub struct Authenticated {
+pub struct KimaiClient {
+    client: Client,
     api_key: String,
     base_url: Url,
 }
 
-#[derive(Clone)]
-pub struct KimaiClient<Auth> {
-    client: Client,
-    auth_state: Auth,
-}
-
-impl KimaiClient<Unauthenticated> {
-    pub fn new() -> Self {
-        tracing::info!("Creating new Kimai Client.");
-        Self {
-            client: Client::new(),
-            auth_state: Unauthenticated,
-        }
-    }
-
-    pub fn authenticate(self, api_key: String, base_url: &str) -> KimaiClient<Authenticated> {
-        let base_url = Url::parse(base_url).expect("Invalid URL input."); // TODO
-        KimaiClient {
-            client: self.client,
-            auth_state: Authenticated { api_key, base_url },
+impl KimaiClient {
+    pub async fn authenticate(
+        client: reqwest::Client,
+        api_key: String,
+        base_url: &str,
+    ) -> Result<KimaiClient, Box<dyn Error + Send + Sync + 'static>> {
+        let base_url = Url::parse(base_url).expect("Invalid URL input."); // Todo
+        let integration = KimaiClient {
+            client,
+            api_key,
+            base_url,
+        };
+        match integration.validate_authentication().await {
+            true => return Ok(integration),
+            false => return Err("Test".into()),
         }
     }
 }
@@ -152,13 +147,13 @@ impl From<KimaiTimeEntry> for TimeEntry {
 }
 
 #[async_trait]
-impl TrackerIntegration for KimaiClient<Authenticated> {
+impl TrackerIntegration for KimaiClient {
     async fn validate_authentication(&self) -> bool {
         tracing::info!("Checking authentication of Kimai");
         let resp = self
             .client
-            .get(self.auth_state.base_url.join("api/users/me").unwrap())
-            .bearer_auth(&self.auth_state.api_key)
+            .get(self.base_url.join("api/users/me").unwrap())
+            .bearer_auth(&self.api_key)
             .header(CONTENT_TYPE, "application/json")
             .send()
             .await
@@ -169,13 +164,8 @@ impl TrackerIntegration for KimaiClient<Authenticated> {
         tracing::info!("Getting current time entry.");
         let resp: Vec<KimaiTimeEntryExpanded> = self
             .client
-            .get(
-                self.auth_state
-                    .base_url
-                    .join("api/timesheets/active")
-                    .unwrap(),
-            )
-            .bearer_auth(&self.auth_state.api_key)
+            .get(self.base_url.join("api/timesheets/active").unwrap())
+            .bearer_auth(&self.api_key)
             .header(CONTENT_TYPE, "application/json")
             .send()
             .await
@@ -208,12 +198,11 @@ impl TrackerIntegration for KimaiClient<Authenticated> {
         let resp: Vec<KimaiActivity> = self
             .client
             .get(
-                self.auth_state
-                    .base_url
+                self.base_url
                     .join(&format!("api/activities?project={}", project_id))
                     .unwrap(),
             )
-            .bearer_auth(&self.auth_state.api_key)
+            .bearer_auth(&self.api_key)
             .header(CONTENT_TYPE, "application/json")
             .send()
             .await?
@@ -229,8 +218,8 @@ impl TrackerIntegration for KimaiClient<Authenticated> {
         tracing::info!("Getting projects.");
         let resp: Vec<KimaiProject> = self
             .client
-            .get(self.auth_state.base_url.join("api/projects").unwrap())
-            .bearer_auth(&self.auth_state.api_key)
+            .get(self.base_url.join("api/projects").unwrap())
+            .bearer_auth(&self.api_key)
             .header(CONTENT_TYPE, "application/json")
             .send()
             .await?
@@ -249,12 +238,11 @@ impl TrackerIntegration for KimaiClient<Authenticated> {
         let _resp = self
             .client
             .patch(
-                self.auth_state
-                    .base_url
+                self.base_url
                     .join(&format!("/api/timesheets/{}/stop", time_entry_id))
                     .unwrap(),
             )
-            .bearer_auth(&self.auth_state.api_key)
+            .bearer_auth(&self.api_key)
             .header(CONTENT_TYPE, "application/json")
             .send()
             .await?;
@@ -281,8 +269,8 @@ impl TrackerIntegration for KimaiClient<Authenticated> {
 
             let resp: KimaiTimeEntry = self
                 .client
-                .post(self.auth_state.base_url.join("/api/timesheets").unwrap())
-                .bearer_auth(&self.auth_state.api_key)
+                .post(self.base_url.join("/api/timesheets").unwrap())
+                .bearer_auth(&self.api_key)
                 .header(CONTENT_TYPE, "application/json")
                 .json(&body)
                 .send()
