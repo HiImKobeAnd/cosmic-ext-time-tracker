@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use cosmic::{
     app,
     iced::Length,
@@ -6,18 +8,12 @@ use cosmic::{
     Element, Task,
 };
 use tracker_integrations::{
-    authentication::{get_api_key, get_integration_url, set_api_key, set_integration_url},
+    authentication::{get_integration_url, set_api_key, set_integration_url},
     integration::TrackerIntegration,
     models::Integration,
-    toggl_integration::TogglClient,
 };
 
 use crate::{applet, config::GlobalState};
-
-enum AuthenticationStatus {
-    Success,
-    Failure,
-}
 
 pub struct SettingsPage {
     pub state: GlobalState,
@@ -26,7 +22,7 @@ pub struct SettingsPage {
     selected_tracker: Option<Integration>,
     api_key: String,
     integration_url: String,
-    authentication_status: AuthenticationStatus,
+    pub integration_client: Option<Arc<dyn TrackerIntegration>>,
 }
 
 #[derive(Debug, Clone)]
@@ -61,8 +57,6 @@ impl SettingsPage {
             .on_input(Message::APIKeyInput)
             .on_submit(Message::APIKeySubmitted);
 
-        // let authenticate_button = button("authenticate").on_press(Message::ValidateAuthentication);
-
         let mut elements = Vec::new();
 
         elements.push(tracker_selector.width(Length::Fill).into());
@@ -77,7 +71,12 @@ impl SettingsPage {
                     elements.push(api_key_input.width(Length::Fill).into());
                 }
             }
-            // elements.push(authenticate_button.width(Length::Fill).into());
+        }
+
+        if self.integration_client.is_some() {
+            elements.push(button("Auth").into());
+        } else {
+            elements.push(button("Unauth").into());
         }
 
         Element::from(Column::new().extend(elements))
@@ -114,7 +113,11 @@ impl SettingsPage {
         }
     }
 
-    pub fn new(state: GlobalState, state_handler: cosmic::cosmic_config::Config) -> Self {
+    pub fn new(
+        state: GlobalState,
+        state_handler: cosmic::cosmic_config::Config,
+        integration_client: Option<Arc<dyn TrackerIntegration>>,
+    ) -> Self {
         let selected_tracker = state.selected_tracker.clone();
         let integration_url = state
             .selected_tracker
@@ -128,7 +131,7 @@ impl SettingsPage {
             selected_tracker,
             api_key: String::default(),
             integration_url: integration_url,
-            authentication_status: AuthenticationStatus::Failure,
+            integration_client,
         }
     }
 }

@@ -1,4 +1,4 @@
-use std::error::Error;
+use std::{error::Error, fmt::Debug};
 
 use async_trait::async_trait;
 
@@ -7,7 +7,7 @@ use crate::models::{
 };
 
 #[async_trait]
-pub trait TrackerIntegration {
+pub trait TrackerIntegration: Debug + Send + Sync {
     async fn validate_authentication(&self) -> bool;
     async fn get_current_time_entry(&self) -> Result<Option<TimeEntry>, reqwest::Error>;
     async fn get_project_activities(

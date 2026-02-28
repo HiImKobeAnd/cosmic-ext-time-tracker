@@ -13,7 +13,7 @@ use crate::{
     models::{Activity, ApiId, Project, ProjectContext, Tag, TimeEntry, TimeEntryContext},
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct KimaiClient {
     client: Client,
     api_key: String,

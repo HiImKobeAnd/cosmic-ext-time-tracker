@@ -1,9 +1,17 @@
 // SPDX-License-Identifier: MPL-2.0
 
 use core::fmt;
+use std::sync::Arc;
 
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
+
+use crate::{
+    authentication::{get_api_key, get_integration_url},
+    integration::TrackerIntegration,
+    kimai_integration::KimaiClient,
+    toggl_integration::TogglClient,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Integration {
@@ -17,6 +25,28 @@ impl std::fmt::Display for Integration {
             Self::TogglIntegration => "Toggl Track",
             Self::KimaiIntegration => "Kimai",
         })
+    }
+}
+
+impl Integration {
+    pub async fn create_client(&self) -> Option<Arc<dyn TrackerIntegration>> {
+        match self {
+            Integration::TogglIntegration => {
+                let api_key = get_api_key(self).ok()?;
+                TogglClient::authenticate(api_key)
+                    .await
+                    .ok()
+                    .map(|c| Arc::new(c) as Arc<dyn TrackerIntegration>)
+            }
+            Integration::KimaiIntegration => {
+                let api_key = get_api_key(self).ok()?;
+                let base_url = get_integration_url(self).ok()?;
+                KimaiClient::authenticate(api_key, &base_url)
+                    .await
+                    .ok()
+                    .map(|c| Arc::new(c) as Arc<dyn TrackerIntegration>)
+            }
+        }
     }
 }
 

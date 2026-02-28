@@ -13,7 +13,7 @@ use crate::{
     models::{ApiId, Project, ProjectContext, Tag, TimeEntry, TimeEntryContext, Workspace},
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TogglClient {
     client: Client,
     api_key: String,
@@ -128,12 +128,12 @@ impl TrackerIntegration for TogglClient {
         tracing::info!("Checking authentication of Toggl Track");
         let resp = self
             .client
-            .get("https://api.track.toggl.com/api/v9/me")
-            .bearer_auth(&self.api_key)
+            .get("https://api.track.toggl.com/api/v9/me/logged")
+            .basic_auth(&self.api_key, Some("api_token"))
             .header(CONTENT_TYPE, "application/json")
             .send()
             .await
-            .expect("1");
+            .expect("todo");
         resp.status().is_success()
     }
     async fn get_current_time_entry(&self) -> Result<Option<TimeEntry>, reqwest::Error> {

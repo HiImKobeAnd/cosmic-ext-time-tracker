@@ -4,11 +4,7 @@ use crate::{
 };
 use cosmic::{
     app,
-    iced::{
-        widget::{column, row},
-        Length,
-    },
-    prelude::CollectionWidget,
+    iced::{widget::row, Length},
     widget::{button, dropdown, icon, text_input, Column},
     Element, Task,
 };
@@ -16,7 +12,6 @@ use std::sync::Arc;
 use tracker_integrations::{
     integration::TrackerIntegration,
     models::{Activity, Integration, Project, ProjectContext, TimeEntry, Workspace},
-    toggl_integration::{Authenticated, TogglClient},
 };
 
 pub struct TimerPage {
@@ -26,7 +21,7 @@ pub struct TimerPage {
     current_project: Option<usize>,
     current_activity: Option<usize>,
     current_description: Option<String>,
-    integration_client: Arc<dyn TrackerIntegration + Send + Sync>,
+    pub integration_client: Option<Arc<dyn TrackerIntegration>>,
 }
 
 #[derive(Debug, Clone)]
@@ -114,14 +109,14 @@ impl TimerPage {
     pub fn update(&mut self, message: Message) -> app::Task<Message> {
         match message {
             Message::GetWorkspaces => {
-                let client = self.integration_client.clone();
-                cosmic::task::future(async move {
-                    let workspaces = client.get_user_workspaces().await;
-                    match workspaces {
-                        Ok(workspaces) => Message::WorkspacesGotten(Some(workspaces)),
-                        Err(_) => Message::WorkspacesGotten(None),
-                    }
-                })
+                if let Some(client) = &self.integration_client {
+                    let client = Arc::clone(client);
+                    return cosmic::task::future(async move {
+                        let workspaces = client.get_user_workspaces().await.ok();
+                        return Message::WorkspacesGotten(workspaces);
+                    });
+                };
+                Task::none()
             }
             Message::WorkspacesGotten(workspaces) => {
                 if let Some(workspaces) = workspaces {
@@ -159,14 +154,14 @@ impl TimerPage {
                 Task::none()
             }
             Message::GetProjects(context) => {
-                let client = self.integration_client.clone();
-                cosmic::task::future(async move {
-                    let projects = client.get_projects(context).await;
-                    match projects {
-                        Ok(projects) => Message::ProjectsGotten(Some(projects)),
-                        Err(_) => Message::ProjectsGotten(None),
-                    }
-                })
+                if let Some(client) = &self.integration_client {
+                    let client = Arc::clone(client);
+                    return cosmic::task::future(async move {
+                        let projects = client.get_projects(context).await.ok();
+                        return Message::ProjectsGotten(projects);
+                    });
+                };
+                Task::none()
             }
             Message::ProjectsGotten(projects) => {
                 if let Some(projects) = projects {
@@ -193,14 +188,17 @@ impl TimerPage {
                 Task::none()
             }
             Message::GetExistingTimeEntry => {
-                let client = self.integration_client.clone();
-                cosmic::task::future(async move {
-                    let time_entry = client.get_current_time_entry().await;
-                    match time_entry {
-                        Ok(entry) => Message::ExistingTimeEntryGotten(entry),
-                        Err(_) => Message::ExistingTimeEntryGotten(None),
-                    }
-                })
+                if let Some(client) = &self.integration_client {
+                    let client = Arc::clone(client);
+                    return cosmic::task::future(async move {
+                        let time_entry = client.get_current_time_entry().await;
+                        match time_entry {
+                            Ok(entry) => return Message::ExistingTimeEntryGotten(entry),
+                            Err(_) => return Message::ExistingTimeEntryGotten(None),
+                        }
+                    });
+                };
+                Task::none()
             }
             Message::ExistingTimeEntryGotten(time_entry) => {
                 let _ = self
@@ -209,16 +207,15 @@ impl TimerPage {
                 Task::none()
             }
             Message::GetActivities => {
-                if let Some(selected_project) = &self.state.selected_project {
-                    let client = self.integration_client.clone();
-                    let project_id = selected_project.id.clone();
-                    return cosmic::task::future(async move {
-                        let activities = client.get_project_activities(project_id).await;
-                        match activities {
-                            Ok(activities) => Message::ActivitiesGotten(Some(activities)),
-                            Err(_) => Message::ActivitiesGotten(None),
-                        }
-                    });
+                if let Some(client) = &self.integration_client {
+                    let client = Arc::clone(client);
+                    if let Some(selected_project) = &self.state.selected_project {
+                        let project_id = selected_project.id.clone();
+                        return cosmic::task::future(async move {
+                            let activities = client.get_project_activities(project_id).await.ok();
+                            return Message::ActivitiesGotten(activities);
+                        });
+                    }
                 }
                 Task::none()
             }
@@ -241,7 +238,7 @@ impl TimerPage {
         }
     }
     pub fn new(
-        integration_client: Arc<dyn TrackerIntegration + Send + Sync>,
+        integration_client: Option<Arc<dyn TrackerIntegration>>,
         state: GlobalState,
         state_handler: cosmic::cosmic_config::Config,
     ) -> Self {
