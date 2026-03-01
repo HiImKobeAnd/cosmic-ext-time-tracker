@@ -3,12 +3,16 @@ use std::sync::Arc;
 use cosmic::{
     app,
     iced::Length,
-    iced_widget::{button, pick_list, text_input},
-    widget::Column,
+    iced_widget::{pick_list, text_input},
+    theme::CosmicTheme,
+    widget::{button, Column},
     Element, Task,
 };
 use tracker_integrations::{
-    authentication::{get_integration_url, set_api_key, set_integration_url},
+    authentication::{
+        get_integration_url, remove_api_key, remove_integration_url, set_api_key,
+        set_integration_url,
+    },
     integration::TrackerIntegration,
     models::Integration,
 };
@@ -33,6 +37,9 @@ pub enum Message {
     IntegrationUrlInput(String),
     IntegrationUrlSubmitted,
     // ValidateAuthentication,
+    SaveCredentials,
+    CredentialsSaved,
+    RemoveCredentials,
 }
 
 impl From<Message> for applet::Message {
@@ -73,11 +80,12 @@ impl SettingsPage {
             }
         }
 
-        if self.integration_client.is_some() {
-            elements.push(button("Auth").into());
+        let button = if self.integration_client.is_some() {
+            button::destructive("Unauthenticate").on_press(Message::RemoveCredentials)
         } else {
-            elements.push(button("Unauth").into());
-        }
+            button::suggested("Authenctiacte").on_press(Message::SaveCredentials)
+        };
+        elements.push(button.into());
 
         Element::from(Column::new().extend(elements))
     }
@@ -110,6 +118,40 @@ impl SettingsPage {
                     let _ = set_integration_url(selected_tracker, self.integration_url.clone());
                 }
                 Task::none()
+            }
+            Message::SaveCredentials => {
+                let Some(selected_tracker) = &self.state.selected_tracker else {
+                    return Task::none();
+                };
+
+                let mut tasks: Vec<Task<Message>> = Vec::new();
+                match selected_tracker {
+                    Integration::TogglIntegration => {
+                        tasks.push(cosmic::task::message(Message::APIKeySubmitted));
+                    }
+                    Integration::KimaiIntegration => {
+                        tasks.push(cosmic::task::message(Message::APIKeySubmitted));
+                        tasks.push(cosmic::task::message(Message::IntegrationUrlSubmitted));
+                    }
+                }
+                cosmic::task::batch(tasks).chain(cosmic::task::message(Message::CredentialsSaved))
+            }
+            Message::CredentialsSaved => Task::none(),
+            Message::RemoveCredentials => {
+                let Some(selected_tracker) = &self.state.selected_tracker else {
+                    return Task::none();
+                };
+
+                match selected_tracker {
+                    Integration::TogglIntegration => {
+                        let _ = remove_api_key(selected_tracker);
+                    }
+                    Integration::KimaiIntegration => {
+                        let _ = remove_api_key(selected_tracker);
+                        let _ = remove_integration_url(selected_tracker);
+                    }
+                };
+                cosmic::task::message(Message::CredentialsSaved)
             }
         }
     }

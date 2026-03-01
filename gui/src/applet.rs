@@ -326,6 +326,9 @@ impl cosmic::Application for AppletModel {
                         }
                     })
             }
+            Message::SettingsPage(settings_page::Message::CredentialsSaved) => {
+                cosmic::task::message(Message::CreateIntegration)
+            }
             Message::SettingsPage(message) => {
                 self.settings_page
                     .update(message)
@@ -338,6 +341,7 @@ impl cosmic::Application for AppletModel {
                         }
                     })
             }
+
             Message::CloseRequested(id) => {
                 if (Some(id)) == self.popup {
                     self.popup = None;
@@ -450,6 +454,7 @@ impl cosmic::Application for AppletModel {
                 Task::none()
             }
             Message::CreateIntegration => {
+                tracing::info!("Creating integration.");
                 let selected_tracker = match self.state.selected_tracker.clone() {
                     Some(selected_tracker) => selected_tracker,
                     None => return Task::none(),
