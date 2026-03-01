@@ -135,7 +135,7 @@ impl From<KimaiTimeEntry> for TimeEntry {
             stop_time: raw.end,
             context: TimeEntryContext::Kimai {
                 activity_id: ApiId::Int(raw.activity),
-                project_id: ApiId::Int(raw.id),
+                project_id: ApiId::Int(raw.project),
             },
         }
     }

@@ -11,7 +11,9 @@ use cosmic::{
 use std::sync::Arc;
 use tracker_integrations::{
     integration::TrackerIntegration,
-    models::{Activity, Integration, Project, ProjectContext, TimeEntry, Workspace},
+    models::{
+        Activity, Integration, Project, ProjectContext, TimeEntry, TimeEntryContext, Workspace,
+    },
 };
 
 pub struct TimerPage {
@@ -36,7 +38,6 @@ pub enum Message {
     ProjectSelected(usize),
     ActivitySelected(usize),
     DescriptionChanged(String),
-    // TODO Duplicate of applet messages
     GetExistingTimeEntry,
     ExistingTimeEntryGotten(Option<TimeEntry>),
 }
@@ -146,7 +147,7 @@ impl TimerPage {
                 if let Some(selected_tracker) = &self.state.selected_tracker {
                     match selected_tracker {
                         Integration::KimaiIntegration => {
-                            return cosmic::task::message(Message::GetActivities)
+                            return cosmic::task::message(Message::GetActivities);
                         }
                         _ => return Task::none(),
                     }
@@ -168,11 +169,6 @@ impl TimerPage {
                     let _ = self
                         .state
                         .set_projects(&self.state_handler, projects.clone());
-                }
-                if let Some(selected_tracker) = &self.state.selected_tracker {
-                    if let Integration::KimaiIntegration = selected_tracker {
-                        return Task::done(cosmic::Action::App(Message::GetActivities));
-                    }
                 }
                 Task::none()
             }
@@ -203,7 +199,39 @@ impl TimerPage {
             Message::ExistingTimeEntryGotten(time_entry) => {
                 let _ = self
                     .state
-                    .set_running_time_entry(&self.state_handler, time_entry);
+                    .set_running_time_entry(&self.state_handler, time_entry.clone());
+
+                if let Some(time_entry) = time_entry {
+                    match time_entry.context {
+                        TimeEntryContext::Kimai {
+                            activity_id: _,
+                            project_id,
+                        } => {
+                            if let Some(project_index) =
+                                self.state.projects.iter().position(|p| p.id == project_id)
+                            {
+                                return cosmic::task::message(Message::ProjectSelected(
+                                    project_index,
+                                ));
+                            };
+                        }
+                        TimeEntryContext::Toggl {
+                            workspace_id,
+                            project_id: _,
+                        } => {
+                            if let Some(workspace_index) = self
+                                .state
+                                .workspaces
+                                .iter()
+                                .position(|w| w.id == workspace_id)
+                            {
+                                return cosmic::task::message(Message::WorkspaceSelected(
+                                    workspace_index,
+                                ));
+                            };
+                        }
+                    }
+                }
                 Task::none()
             }
             Message::GetActivities => {

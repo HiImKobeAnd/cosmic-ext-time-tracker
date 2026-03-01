@@ -85,7 +85,7 @@ impl SettingsPage {
         } else {
             button::suggested("Authenctiacte").on_press(Message::SaveCredentials)
         };
-        elements.push(button.into());
+        elements.push(button.width(Length::Fill).into());
 
         Element::from(Column::new().extend(elements))
     }

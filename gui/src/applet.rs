@@ -90,8 +90,6 @@ pub enum Message {
     TimerPage(timer_page::Message),
     TimeEntriesPage(time_entries_page::Message),
     SettingsPage(settings_page::Message),
-    GetExistingTimeEntry,
-    ExistingTimeEntryGotten(Option<TimeEntry>),
     StartTimer,
     TimerStarted(TimeEntry),
     StopTimer,
@@ -155,20 +153,40 @@ impl AppletModel {
             }
             Some(_) => {
                 let applet_height: f32 = self.core.applet.suggested_size(true).1.into();
-                let indicator_color = self
-                    .state
-                    .selected_tracker
-                    .as_ref()
-                    .and_then(|selected_tracker| match selected_tracker {
-                        Integration::TogglIntegration => {
-                            self.state.selected_project.as_ref().map(|p| &p.color)
+
+                let mut indicator_color = Color::WHITE;
+                if let Some(running_time_entry) = &self.state.running_time_entry {
+                    match &running_time_entry.context {
+                        TimeEntryContext::Kimai {
+                            activity_id,
+                            project_id: _,
+                        } => {
+                            indicator_color = self
+                                .state
+                                .activities
+                                .iter()
+                                .find(|a| a.id == *activity_id)
+                                .map(|a| &a.color)
+                                .and_then(|hex| Color::parse(hex))
+                                .unwrap_or(Color::WHITE)
                         }
-                        Integration::KimaiIntegration => {
-                            self.state.selected_activity.as_ref().map(|a| &a.color)
+                        TimeEntryContext::Toggl {
+                            workspace_id: _,
+                            project_id,
+                        } => {
+                            if let Some(project_id) = project_id {
+                                indicator_color = self
+                                    .state
+                                    .projects
+                                    .iter()
+                                    .find(|a| a.id == *project_id)
+                                    .map(|a| &a.color)
+                                    .and_then(|hex| Color::parse(hex))
+                                    .unwrap_or(Color::WHITE)
+                            }
                         }
-                    })
-                    .and_then(|hex| Color::parse(hex))
-                    .unwrap_or(Color::WHITE);
+                    }
+                }
                 let project_indicator = color_circle(indicator_color, applet_height / 2.);
                 let counter = match &self.state.running_time_entry {
                     Some(entry) => button::custom(Text::new(format_duration(
@@ -238,7 +256,6 @@ impl cosmic::Application for AppletModel {
 
         let time_entries_page = time_entries_page::TimeEntriesPage::new();
 
-        startup_tasks.push(cosmic::task::message(Message::GetExistingTimeEntry));
         startup_tasks.push(cosmic::task::message(Message::CreateIntegration));
 
         let settings_page = SettingsPage::new(
@@ -346,25 +363,6 @@ impl cosmic::Application for AppletModel {
                 if (Some(id)) == self.popup {
                     self.popup = None;
                 }
-                Task::none()
-            }
-            Message::GetExistingTimeEntry => {
-                if let Some(client) = &self.integration_client {
-                    let client = Arc::clone(client);
-                    return cosmic::task::future(async move {
-                        let time_entry = client.get_current_time_entry().await;
-                        match time_entry {
-                            Ok(entry) => return Message::ExistingTimeEntryGotten(entry),
-                            Err(_) => return Message::ExistingTimeEntryGotten(None),
-                        };
-                    });
-                }
-                Task::none()
-            }
-            Message::ExistingTimeEntryGotten(time_entry) => {
-                let _ = self
-                    .state
-                    .set_running_time_entry(&self.state_handler, time_entry);
                 Task::none()
             }
             Message::StartTimer => {
