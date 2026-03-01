@@ -86,7 +86,8 @@ impl SettingsPage {
         match message {
             Message::TrackerSelected(selected) => {
                 self.selected_tracker = Some(selected.clone());
-                self.state
+                let _ = self
+                    .state
                     .set_selected_tracker(&self.state_handler, Some(selected));
                 Task::none()
             }
@@ -96,7 +97,7 @@ impl SettingsPage {
             }
             Message::APIKeySubmitted => {
                 if let Some(selected_tracker) = &self.selected_tracker {
-                    set_api_key(selected_tracker, self.api_key.clone());
+                    let _ = set_api_key(selected_tracker, self.api_key.clone());
                 }
                 Task::none()
             }
@@ -106,7 +107,7 @@ impl SettingsPage {
             }
             Message::IntegrationUrlSubmitted => {
                 if let Some(selected_tracker) = &self.selected_tracker {
-                    set_integration_url(selected_tracker, self.integration_url.clone());
+                    let _ = set_integration_url(selected_tracker, self.integration_url.clone());
                 }
                 Task::none()
             }

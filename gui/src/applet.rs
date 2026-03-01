@@ -9,7 +9,7 @@ use cosmic::{
         window, Alignment, Color, Length, Subscription,
     },
     iced_winit::commands::popup::{destroy_popup, get_popup},
-    task, theme,
+    theme,
     widget::{
         autosize, button, container, icon,
         segmented_button::{self, Entity},
@@ -23,11 +23,8 @@ use std::{
     time::Duration,
 };
 use tracker_integrations::{
-    authentication::{get_api_key, get_integration_url},
     integration::TrackerIntegration,
-    kimai_integration::KimaiClient,
     models::{Integration, TimeEntry, TimeEntryContext},
-    toggl_integration::TogglClient,
 };
 
 use crate::{
@@ -438,15 +435,16 @@ impl cosmic::Application for AppletModel {
 
                 if selected_tracker != state.selected_tracker {
                     tracing::info!("Tracker Changed.");
-                    self.state
+                    let _ = self
+                        .state
                         .set_selected_tracker(&self.state_handler, state.selected_tracker.clone());
-                    self.state.set_workspaces(&self.state_handler, Vec::new());
-                    self.state.set_activities(&self.state_handler, Vec::new());
-                    self.state.set_projects(&self.state_handler, Vec::new());
-                    self.state.set_selected_workspace(&self.state_handler, None);
-                    self.state.set_selected_activity(&self.state_handler, None);
-                    self.state.set_selected_project(&self.state_handler, None);
-                    self.state.set_running_time_entry(&self.state_handler, None);
+                    let _ = self.state.set_workspaces(&self.state_handler, Vec::new());
+                    let _ = self.state.set_activities(&self.state_handler, Vec::new());
+                    let _ = self.state.set_projects(&self.state_handler, Vec::new());
+                    let _ = self.state.set_selected_workspace(&self.state_handler, None);
+                    let _ = self.state.set_selected_activity(&self.state_handler, None);
+                    let _ = self.state.set_selected_project(&self.state_handler, None);
+                    let _ = self.state.set_running_time_entry(&self.state_handler, None);
                     return cosmic::task::message(Message::CreateIntegration);
                 }
                 Task::none()
@@ -497,7 +495,7 @@ impl cosmic::Application for AppletModel {
         autosize::autosize(self.horizontal_layout(), AUTOSIZE_MAIN_ID.clone()).into()
     }
 
-    fn view_window(&self, id: window::Id) -> Element<'_, Self::Message> {
+    fn view_window(&self, _id: window::Id) -> Element<'_, Self::Message> {
         let Spacing { .. } = theme::active().cosmic().spacing;
         let content = match &self.integration_client {
             Some(_) => match self.popup_page {
@@ -514,7 +512,7 @@ impl cosmic::Application for AppletModel {
         self.core
             .applet
             .popup_container(container(column![tab_bar_element, content]))
-            .min_height(400.) // !HACK Fix for dropdown getting cut off
+            .min_height(600.) // !HACK Fix for dropdown getting cut off
             .min_width(400.) // !HACK Fix for dropdown getting cut off
             .into()
     }

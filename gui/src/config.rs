@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 use cosmic::cosmic_config::{self, cosmic_config_derive::CosmicConfigEntry, CosmicConfigEntry};
-use tracker_integrations::models::{
-    Activity, Integration, Project, Tag, TimeEntry, TimeEntryContext, Workspace,
-};
+use tracker_integrations::models::{Activity, Integration, Project, Tag, TimeEntry, Workspace};
 
 pub const GLOBAL_STATE_VERSION: u64 = 1;
 

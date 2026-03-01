@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: MPL-2.0
 
-use std::error::Error;
-
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
 use reqwest::{Client, header::CONTENT_TYPE};
@@ -9,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use crate::{
+    error::Error,
     integration::TrackerIntegration,
     models::{ApiId, Project, ProjectContext, Tag, TimeEntry, TimeEntryContext, Workspace},
 };
@@ -20,17 +19,15 @@ pub struct TogglClient {
 }
 
 impl TogglClient {
-    pub async fn authenticate(
-        api_key: String,
-    ) -> Result<TogglClient, Box<dyn Error + Send + Sync + 'static>> {
+    pub async fn authenticate(api_key: String) -> Result<TogglClient, Error> {
         let integration = TogglClient {
             client: Client::new(),
             api_key,
         };
-        match integration.validate_authentication().await {
-            true => return Ok(integration),
-            false => return Err("Test".into()),
+        if !integration.validate_authentication().await? {
+            return Err(Error::NotAuthorized);
         }
+        Ok(integration)
     }
 }
 
@@ -124,7 +121,7 @@ impl From<TogglTimeEntry> for TimeEntry {
 
 #[async_trait]
 impl TrackerIntegration for TogglClient {
-    async fn validate_authentication(&self) -> bool {
+    async fn validate_authentication(&self) -> Result<bool, Error> {
         tracing::info!("Checking authentication of Toggl Track");
         let resp = self
             .client
@@ -132,11 +129,10 @@ impl TrackerIntegration for TogglClient {
             .basic_auth(&self.api_key, Some("api_token"))
             .header(CONTENT_TYPE, "application/json")
             .send()
-            .await
-            .expect("todo");
-        resp.status().is_success()
+            .await?;
+        Ok(resp.status().is_success())
     }
-    async fn get_current_time_entry(&self) -> Result<Option<TimeEntry>, reqwest::Error> {
+    async fn get_current_time_entry(&self) -> Result<Option<TimeEntry>, Error> {
         tracing::info!("Getting current time entry.");
         let resp: Option<TogglTimeEntry> = self
             .client
@@ -153,7 +149,7 @@ impl TrackerIntegration for TogglClient {
         }
     }
 
-    async fn get_user_workspaces(&self) -> Result<Vec<Workspace>, reqwest::Error> {
+    async fn get_user_workspaces(&self) -> Result<Vec<Workspace>, Error> {
         tracing::info!("Getting user workspaces.");
         let resp: Vec<TogglWorkspace> = self
             .client
@@ -171,103 +167,97 @@ impl TrackerIntegration for TogglClient {
         &self,
         time_entry_context: TimeEntryContext,
         time_entry_id: ApiId,
-    ) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
+    ) -> Result<(), Error> {
         tracing::info!("Stopping time entry.");
-        if let TimeEntryContext::Toggl {
+        let TimeEntryContext::Toggl {
             workspace_id,
             project_id: _,
         } = time_entry_context
-        {
-            let _resp = self
-                .client
-                .patch(format!(
-                    "https://api.track.toggl.com/api/v9/workspaces/{}/time_entries/{}/stop",
-                    workspace_id, time_entry_id
-                ))
-                .basic_auth(&self.api_key, Some("api_token"))
-                .header(CONTENT_TYPE, "application/json")
-                .send()
-                .await?;
-            Ok(())
-        } else {
-            Err("Test".into())
-        }
+        else {
+            return Err(Error::WrongTimeEntryContext);
+        };
+
+        let _resp = self
+            .client
+            .patch(format!(
+                "https://api.track.toggl.com/api/v9/workspaces/{}/time_entries/{}/stop",
+                workspace_id, time_entry_id
+            ))
+            .basic_auth(&self.api_key, Some("api_token"))
+            .header(CONTENT_TYPE, "application/json")
+            .send()
+            .await?;
+        Ok(())
     }
 
     async fn start_new_time_entry(
         &self,
         time_entry_context: TimeEntryContext,
         description: Option<String>,
-    ) -> Result<TimeEntry, Box<dyn Error + Send + Sync + 'static>> {
-        if let TimeEntryContext::Toggl {
+    ) -> Result<TimeEntry, Error> {
+        tracing::info!("Starting new time entry.");
+        let TimeEntryContext::Toggl {
             workspace_id,
             project_id,
         } = time_entry_context
-        {
-            tracing::info!("Starting new time entry.");
-            let body = json!({
-                "workspace_id": workspace_id,
-                "project_id": project_id,
-                "description": description,
-                "created_with": "cosmic-ext-time-tracker",
-                "duration": -1,
-                "start": Utc::now().to_rfc3339(),
-            });
+        else {
+            return Err(Error::WrongTimeEntryContext);
+        };
 
-            let resp: TogglTimeEntry = self
-                .client
-                .post(format!(
-                    "https://api.track.toggl.com/api/v9/workspaces/{}/time_entries",
-                    workspace_id
-                ))
-                .basic_auth(&self.api_key, Some("api_token"))
-                .header(CONTENT_TYPE, "application/json")
-                .json(&body)
-                .send()
-                .await?
-                .json()
-                .await?;
-            Ok(resp.into())
-        } else {
-            Err("Test".into())
-        }
+        let body = json!({
+            "workspace_id": workspace_id,
+            "project_id": project_id,
+            "description": description,
+            "created_with": "cosmic-ext-time-tracker",
+            "duration": -1,
+            "start": Utc::now().to_rfc3339(),
+        });
+
+        let resp: TogglTimeEntry = self
+            .client
+            .post(format!(
+                "https://api.track.toggl.com/api/v9/workspaces/{}/time_entries",
+                workspace_id
+            ))
+            .basic_auth(&self.api_key, Some("api_token"))
+            .header(CONTENT_TYPE, "application/json")
+            .json(&body)
+            .send()
+            .await?
+            .json()
+            .await?;
+        Ok(resp.into())
     }
 
-    async fn update_running_time_entry(
-        &self,
-        time_entry: &TimeEntry,
-    ) -> Result<(), reqwest::Error> {
+    async fn update_running_time_entry(&self, _time_entry: &TimeEntry) -> Result<(), Error> {
         tracing::info!("Updaing running time entry.");
         todo!()
     }
 
     async fn get_project_activities(
         &self,
-        project_id: ApiId,
-    ) -> Result<Vec<crate::models::Activity>, reqwest::Error> {
+        _project_id: ApiId,
+    ) -> Result<Vec<crate::models::Activity>, Error> {
         todo!()
     }
 
-    async fn get_projects(
-        &self,
-        project_context: ProjectContext,
-    ) -> Result<Vec<Project>, Box<dyn Error + Send + Sync + 'static>> {
+    async fn get_projects(&self, project_context: ProjectContext) -> Result<Vec<Project>, Error> {
         tracing::info!("Getting workspace projects.");
-        if let ProjectContext::Toggl { workspace_id } = project_context {
-            let resp: Vec<TogglProject> = self
-                .client
-                .get(format!(
-                    "https://api.track.toggl.com/api/v9/workspaces/{workspace_id}/projects"
-                ))
-                .basic_auth(&self.api_key, Some("api_token"))
-                .header(CONTENT_TYPE, "application/json")
-                .send()
-                .await?
-                .json()
-                .await?;
-            Ok(resp.into_iter().map(Into::into).collect())
-        } else {
-            Err("Test".into())
-        }
+        let ProjectContext::Toggl { workspace_id } = project_context else {
+            return Err(Error::WrongProjectContext);
+        };
+
+        let resp: Vec<TogglProject> = self
+            .client
+            .get(format!(
+                "https://api.track.toggl.com/api/v9/workspaces/{workspace_id}/projects"
+            ))
+            .basic_auth(&self.api_key, Some("api_token"))
+            .header(CONTENT_TYPE, "application/json")
+            .send()
+            .await?
+            .json()
+            .await?;
+        Ok(resp.into_iter().map(Into::into).collect())
     }
 }
