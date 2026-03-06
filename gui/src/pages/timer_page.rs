@@ -114,7 +114,7 @@ impl TimerPage {
                     let client = Arc::clone(client);
                     return cosmic::task::future(async move {
                         let workspaces = client.get_user_workspaces().await.ok();
-                        return Message::WorkspacesGotten(workspaces);
+                        Message::WorkspacesGotten(workspaces)
                     });
                 };
                 Task::none()
@@ -159,7 +159,7 @@ impl TimerPage {
                     let client = Arc::clone(client);
                     return cosmic::task::future(async move {
                         let projects = client.get_projects(context).await.ok();
-                        return Message::ProjectsGotten(projects);
+                        Message::ProjectsGotten(projects)
                     });
                 };
                 Task::none()
@@ -189,8 +189,8 @@ impl TimerPage {
                     return cosmic::task::future(async move {
                         let time_entry = client.get_current_time_entry().await;
                         match time_entry {
-                            Ok(entry) => return Message::ExistingTimeEntryGotten(entry),
-                            Err(_) => return Message::ExistingTimeEntryGotten(None),
+                            Ok(entry) => Message::ExistingTimeEntryGotten(entry),
+                            Err(_) => Message::ExistingTimeEntryGotten(None),
                         }
                     });
                 };
@@ -241,7 +241,7 @@ impl TimerPage {
                         let project_id = selected_project.id.clone();
                         return cosmic::task::future(async move {
                             let activities = client.get_project_activities(project_id).await.ok();
-                            return Message::ActivitiesGotten(activities);
+                            Message::ActivitiesGotten(activities)
                         });
                     }
                 }
@@ -300,7 +300,7 @@ impl TimerPage {
             current_workspace,
             current_project,
             current_activity,
-            current_description: current_description,
+            current_description,
         }
     }
 }

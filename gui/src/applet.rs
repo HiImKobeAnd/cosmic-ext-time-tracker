@@ -158,35 +158,47 @@ impl AppletModel {
                 if let Some(running_time_entry) = &self.state.running_time_entry {
                     match &running_time_entry.context {
                         TimeEntryContext::Kimai {
-                            activity_id,
+                            activity_id: _,
                             project_id: _,
                         } => {
-                            indicator_color = self
-                                .state
-                                .activities
-                                .iter()
-                                .find(|a| a.id == *activity_id)
-                                .map(|a| &a.color)
-                                .and_then(|hex| Color::parse(hex))
+                            indicator_color = running_time_entry
+                                .context
+                                .get_activity(&self.state.activities)
+                                .and_then(|a| Color::parse(&a.color))
                                 .unwrap_or(Color::WHITE)
                         }
                         TimeEntryContext::Toggl {
                             workspace_id: _,
-                            project_id,
+                            project_id: _,
                         } => {
-                            if let Some(project_id) = project_id {
-                                indicator_color = self
-                                    .state
-                                    .projects
-                                    .iter()
-                                    .find(|a| a.id == *project_id)
-                                    .map(|a| &a.color)
-                                    .and_then(|hex| Color::parse(hex))
-                                    .unwrap_or(Color::WHITE)
-                            }
+                            indicator_color = running_time_entry
+                                .context
+                                .get_project(&self.state.projects)
+                                .and_then(|p| Color::parse(&p.color))
+                                .unwrap_or(Color::WHITE)
                         }
                     }
-                }
+                } else if let Some(selected_tracker) = &self.state.selected_tracker {
+                    match selected_tracker {
+                        Integration::TogglIntegration => {
+                            indicator_color = self
+                                .state
+                                .selected_project
+                                .as_ref()
+                                .and_then(|p| Color::parse(&p.color))
+                                .unwrap_or(Color::WHITE)
+                        }
+                        Integration::KimaiIntegration => {
+                            indicator_color = self
+                                .state
+                                .selected_activity
+                                .as_ref()
+                                .and_then(|a| Color::parse(&a.color))
+                                .unwrap_or(Color::WHITE)
+                        }
+                    };
+                };
+
                 let project_indicator = color_circle(indicator_color, applet_height / 2.);
                 let counter = match &self.state.running_time_entry {
                     Some(entry) => button::custom(Text::new(format_duration(
@@ -276,7 +288,7 @@ impl cosmic::Application for AppletModel {
                 popup_page: Page::Settings,
                 timer_page,
                 time_entries_page,
-                integration_client: integration_client,
+                integration_client,
             },
             cosmic::task::batch(startup_tasks),
         )
@@ -368,6 +380,8 @@ impl cosmic::Application for AppletModel {
             Message::StartTimer => {
                 if let Some(client) = &self.integration_client {
                     let client = Arc::clone(client);
+                    // REFACTOR make a selected struct which gets sent in the start_new_time_entry
+                    // avoiding TimeEntryContext
                     if let Some(selected_tracker) = &self.state.selected_tracker {
                         let context = match selected_tracker {
                             Integration::TogglIntegration => {
@@ -458,10 +472,10 @@ impl cosmic::Application for AppletModel {
                     None => return Task::none(),
                 };
 
-                return cosmic::task::future(async move {
+                cosmic::task::future(async move {
                     let client = selected_tracker.create_client().await;
-                    return Message::IntegrationCreated(client);
-                });
+                    Message::IntegrationCreated(client)
+                })
             }
             Message::IntegrationCreated(tracker_integration) => {
                 self.integration_client = tracker_integration.clone();

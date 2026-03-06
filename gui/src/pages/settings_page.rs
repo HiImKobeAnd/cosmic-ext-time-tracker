@@ -4,7 +4,6 @@ use cosmic::{
     app,
     iced::Length,
     iced_widget::{pick_list, text_input},
-    theme::CosmicTheme,
     widget::{button, Column},
     Element, Task,
 };
@@ -36,7 +35,6 @@ pub enum Message {
     APIKeySubmitted,
     IntegrationUrlInput(String),
     IntegrationUrlSubmitted,
-    // ValidateAuthentication,
     SaveCredentials,
     CredentialsSaved,
     RemoveCredentials,
@@ -173,7 +171,7 @@ impl SettingsPage {
             trackers: vec![Integration::TogglIntegration, Integration::KimaiIntegration],
             selected_tracker,
             api_key: String::default(),
-            integration_url: integration_url,
+            integration_url,
             integration_client,
         }
     }

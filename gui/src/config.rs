@@ -7,12 +7,6 @@ pub const GLOBAL_STATE_VERSION: u64 = 1;
 
 #[derive(Debug, Default, Clone, CosmicConfigEntry, Eq, PartialEq)]
 #[version = 1]
-pub struct TrackerConfig {
-    demo: String,
-}
-
-#[derive(Debug, Default, Clone, CosmicConfigEntry, Eq, PartialEq)]
-#[version = 1]
 pub struct GlobalState {
     pub selected_tracker: Option<Integration>,
     pub running_time_entry: Option<TimeEntry>,
