@@ -149,3 +149,32 @@ impl Default for TimeEntryContext {
         }
     }
 }
+
+impl TimeEntryContext {
+    pub fn get_activity<'a>(&self, activities: &'a [Activity]) -> Option<&'a Activity> {
+        match &self {
+            TimeEntryContext::Kimai { activity_id, .. } => {
+                activities.iter().find(|a| a.id == *activity_id)
+            }
+            _ => None,
+        }
+    }
+    pub fn get_project<'a>(&self, projects: &'a [Project]) -> Option<&'a Project> {
+        match &self {
+            TimeEntryContext::Kimai { project_id, .. } => {
+                projects.iter().find(|p| p.id == *project_id)
+            }
+            TimeEntryContext::Toggl { project_id, .. } => project_id
+                .as_ref()
+                .and_then(|id| projects.iter().find(|p| p.id == *id)),
+        }
+    }
+    pub fn get_workspace<'a>(&self, workspaces: &'a [Workspace]) -> Option<&'a Workspace> {
+        match &self {
+            TimeEntryContext::Toggl { workspace_id, .. } => {
+                workspaces.iter().find(|w| w.id == *workspace_id)
+            }
+            _ => None,
+        }
+    }
+}
