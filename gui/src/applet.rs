@@ -11,7 +11,9 @@ use cosmic::{
     iced_winit::commands::popup::{destroy_popup, get_popup},
     theme,
     widget::{
-        autosize, button, container, icon,
+        autosize,
+        button::{self},
+        container, icon,
         segmented_button::{self, Entity},
         tab_bar, Id, Text,
     },
@@ -481,6 +483,7 @@ impl cosmic::Application for AppletModel {
                 self.integration_client = tracker_integration.clone();
                 self.timer_page.integration_client = self.integration_client.clone();
                 self.settings_page.integration_client = self.integration_client.clone();
+                self.popup_page = Page::Timer;
 
                 let mut startup_tasks: Vec<Task<Message>> = Vec::new();
                 startup_tasks.push(cosmic::task::message(
