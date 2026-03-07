@@ -10,7 +10,7 @@ use crate::{
     error::Error,
     integration::TrackerIntegration,
     models::{
-        Activity, ApiId, Project, ProjectContext, Tag, TimeEntry, TimeEntryContext, TimeEntryUpdate,
+        Activity, ApiId, Project, ProjectContext, TimeEntry, TimeEntryContext, TimeEntryUpdate,
     },
 };
 
@@ -115,16 +115,16 @@ impl From<KimaiActivity> for Activity {
     }
 }
 
-impl From<KimaiTag> for Tag {
-    fn from(raw: KimaiTag) -> Self {
-        Self {
-            id: ApiId::Int(raw.id),
-            name: raw.name,
-            modified_at: DateTime::default(),
-            workspace_id: todo!(), // TODO
-        }
-    }
-}
+// impl From<KimaiTag> for Tag {
+//     fn from(raw: KimaiTag) -> Self {
+//         Self {
+//             id: ApiId::Int(raw.id),
+//             name: raw.name,
+//             modified_at: DateTime::default(),
+//             workspace_id: todo!(), // TODO
+//         }
+//     }
+// }
 
 impl From<KimaiTimeEntry> for TimeEntry {
     fn from(raw: KimaiTimeEntry) -> Self {

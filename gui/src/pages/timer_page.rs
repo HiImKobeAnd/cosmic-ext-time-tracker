@@ -2,6 +2,7 @@ use crate::{
     applet::{self},
     config::GlobalState,
 };
+use chrono::NaiveTime;
 use cosmic::{
     app,
     iced::{widget::row, Length},
@@ -12,18 +13,20 @@ use std::sync::Arc;
 use tracker_integrations::{
     integration::TrackerIntegration,
     models::{
-        Activity, Integration, Project, ProjectContext, TimeEntry, TimeEntryContext, Workspace,
+        Activity, Integration, Project, ProjectContext, TimeEntry, TimeEntryContext,
+        TimeEntryUpdate, Workspace,
     },
 };
 
 pub struct TimerPage {
     pub state: GlobalState,
+    pub integration_client: Option<Arc<dyn TrackerIntegration>>,
     state_handler: cosmic::cosmic_config::Config,
     current_workspace: Option<usize>,
     current_project: Option<usize>,
     current_activity: Option<usize>,
     current_description: Option<String>,
-    pub integration_client: Option<Arc<dyn TrackerIntegration>>,
+    start_time_field_text: String,
 }
 
 #[derive(Debug, Clone)]
@@ -40,6 +43,9 @@ pub enum Message {
     DescriptionChanged(String),
     GetExistingTimeEntry,
     ExistingTimeEntryGotten(Option<TimeEntry>),
+    StartTimeFieldTextChanged(String),
+    StartTimeFieldSubmitted(String),
+    StartTimeFieldUnfocused,
 }
 
 impl From<Message> for applet::Message {
@@ -50,6 +56,11 @@ impl From<Message> for applet::Message {
 
 impl TimerPage {
     pub fn view(&self) -> cosmic::Element<'_, Message> {
+        let start_time_field = text_input("No running timer.", self.start_time_field_text.clone())
+            .label("From:")
+            .on_input(Message::StartTimeFieldTextChanged)
+            .on_submit(Message::StartTimeFieldSubmitted)
+            .on_unfocus(Message::StartTimeFieldUnfocused);
         let workspace_selector = dropdown::dropdown(
             self.state
                 .workspaces
@@ -87,6 +98,7 @@ impl TimerPage {
             .on_press(Message::GetExistingTimeEntry);
 
         let mut elements = Vec::new();
+        elements.push(row![start_time_field].width(Length::Fill).into());
         if let Some(selected_tracker) = &self.state.selected_tracker {
             match selected_tracker {
                 tracker_integrations::models::Integration::TogglIntegration => {
@@ -202,6 +214,7 @@ impl TimerPage {
                     .set_running_time_entry(&self.state_handler, time_entry.clone());
 
                 if let Some(time_entry) = time_entry {
+                    self.start_time_field_text = time_entry.start_time.format("%H:%M").to_string();
                     match time_entry.context {
                         TimeEntryContext::Kimai {
                             activity_id: _,
@@ -263,6 +276,52 @@ impl TimerPage {
                 );
                 Task::none()
             }
+            Message::StartTimeFieldTextChanged(text) => {
+                self.start_time_field_text = text;
+                Task::none()
+            }
+            Message::StartTimeFieldSubmitted(text) => {
+                let Some(client) = &self.integration_client else {
+                    return Task::none();
+                };
+                let Some(parsed_time) = NaiveTime::parse_from_str(&text, "%H:%M").ok() else {
+                    return Task::none();
+                };
+                let Some(time_entry) = &self.state.running_time_entry else {
+                    return Task::none();
+                };
+
+                let time_entry = time_entry.clone();
+                let Some(new_start_time) = time_entry.start_time.with_time(parsed_time).single()
+                else {
+                    return Task::none();
+                };
+
+                let time_entry_update = TimeEntryUpdate {
+                    billable: time_entry.billable,
+                    description: time_entry.description.clone(),
+                    start_time: new_start_time,
+                    stop_time: time_entry.stop_time,
+                };
+
+                let client = Arc::clone(client);
+                return cosmic::task::future(async move {
+                    let time_entry = client
+                        .update_time_entry(&time_entry, &time_entry_update)
+                        .await
+                        .ok();
+                    Message::ExistingTimeEntryGotten(time_entry)
+                });
+            }
+            Message::StartTimeFieldUnfocused => {
+                self.start_time_field_text = self
+                    .state
+                    .running_time_entry
+                    .clone()
+                    .map(|e| e.start_time.format("%H:%M").to_string())
+                    .unwrap_or("No Time".to_string());
+                Task::none()
+            }
         }
     }
     pub fn new(
@@ -293,6 +352,12 @@ impl TimerPage {
         }
         let current_description = state.current_description.clone();
 
+        let start_time_field_text = state
+            .running_time_entry
+            .clone()
+            .map(|e| e.start_time.format("%H:%M").to_string())
+            .unwrap_or("No Time".to_string());
+
         TimerPage {
             state,
             state_handler,
@@ -301,6 +366,7 @@ impl TimerPage {
             current_project,
             current_activity,
             current_description,
+            start_time_field_text,
         }
     }
 }
