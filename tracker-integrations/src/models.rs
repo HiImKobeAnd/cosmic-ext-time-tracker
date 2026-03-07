@@ -117,6 +117,14 @@ pub struct TimeEntry {
     pub context: TimeEntryContext,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Default)]
+pub struct TimeEntryUpdate {
+    pub billable: bool,
+    pub description: Option<String>,
+    pub start_time: DateTime<Utc>, // !TODO Research what implications that using UTC will have
+    pub stop_time: Option<DateTime<Utc>>, // !TODO Research what implications that using UTC will have
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub enum ProjectContext {
     Kimai,

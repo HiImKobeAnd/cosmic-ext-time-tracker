@@ -9,7 +9,10 @@ use serde_json::json;
 use crate::{
     error::Error,
     integration::TrackerIntegration,
-    models::{ApiId, Project, ProjectContext, Tag, TimeEntry, TimeEntryContext, Workspace},
+    models::{
+        ApiId, Project, ProjectContext, Tag, TimeEntry, TimeEntryContext, TimeEntryUpdate,
+        Workspace,
+    },
 };
 
 #[derive(Clone, Debug)]
@@ -229,9 +232,39 @@ impl TrackerIntegration for TogglClient {
         Ok(resp.into())
     }
 
-    async fn update_running_time_entry(&self, _time_entry: &TimeEntry) -> Result<(), Error> {
-        tracing::info!("Updaing running time entry.");
-        todo!()
+    async fn update_time_entry(
+        &self,
+        time_entry: &TimeEntry,
+        time_entry_update: &TimeEntryUpdate,
+    ) -> Result<TimeEntry, Error> {
+        tracing::info!("Updaing time entry {}.", time_entry.id);
+
+        let TimeEntryContext::Toggl { workspace_id, .. } = &time_entry.context else {
+            return Err(Error::WrongProjectContext);
+        };
+
+        let body = json!({
+            "start": time_entry_update.start_time ,
+            "stop": time_entry_update.stop_time,
+            "description": time_entry_update.description,
+            "billable": time_entry_update.billable,
+        });
+
+        let endpoint = format!(
+            "https://api.track.toggl.com/api/v9/workspaces/{}/time_entries/{}",
+            workspace_id, time_entry.id
+        );
+        let resp: TogglTimeEntry = self
+            .client
+            .put(endpoint)
+            .basic_auth(&self.api_key, Some("api_token"))
+            .header(CONTENT_TYPE, "application/json")
+            .json(&body)
+            .send()
+            .await?
+            .json()
+            .await?;
+        Ok(resp.into())
     }
 
     async fn get_project_activities(

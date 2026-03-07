@@ -9,7 +9,9 @@ use serde_json::json;
 use crate::{
     error::Error,
     integration::TrackerIntegration,
-    models::{Activity, ApiId, Project, ProjectContext, Tag, TimeEntry, TimeEntryContext},
+    models::{
+        Activity, ApiId, Project, ProjectContext, Tag, TimeEntry, TimeEntryContext, TimeEntryUpdate,
+    },
 };
 
 #[derive(Clone, Debug)]
@@ -266,9 +268,32 @@ impl TrackerIntegration for KimaiClient {
         Ok(resp.into())
     }
 
-    async fn update_running_time_entry(&self, _time_entry: &TimeEntry) -> Result<(), Error> {
-        tracing::info!("Updaing running time entry.");
-        todo!()
+    async fn update_time_entry(
+        &self,
+        time_entry: &TimeEntry,
+        time_entry_update: &TimeEntryUpdate,
+    ) -> Result<TimeEntry, Error> {
+        tracing::info!("Updaing time entry {}.", time_entry.id);
+
+        let body = json!({
+            "begin": time_entry_update.start_time ,
+            "end": time_entry_update.stop_time,
+            "description": time_entry_update.description,
+            "billable": time_entry_update.billable,
+        });
+
+        let endpoint = format!("/api/timesheets/{}", time_entry.id);
+        let resp: KimaiTimeEntry = self
+            .client
+            .patch(self.base_url.join(&endpoint)?)
+            .bearer_auth(&self.api_key)
+            .header(CONTENT_TYPE, "application/json")
+            .json(&body)
+            .send()
+            .await?
+            .json()
+            .await?;
+        Ok(resp.into())
     }
 
     async fn get_user_workspaces(&self) -> Result<Vec<crate::models::Workspace>, Error> {

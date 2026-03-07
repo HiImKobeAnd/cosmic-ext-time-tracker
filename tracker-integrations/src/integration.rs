@@ -4,7 +4,10 @@ use async_trait::async_trait;
 
 use crate::{
     error::Error,
-    models::{Activity, ApiId, Project, ProjectContext, TimeEntry, TimeEntryContext, Workspace},
+    models::{
+        Activity, ApiId, Project, ProjectContext, TimeEntry, TimeEntryContext, TimeEntryUpdate,
+        Workspace,
+    },
 };
 
 #[async_trait]
@@ -28,5 +31,9 @@ pub trait TrackerIntegration: Debug + Send + Sync {
         time_entry_context: TimeEntryContext,
         description: Option<String>,
     ) -> Result<TimeEntry, Error>;
-    async fn update_running_time_entry(&self, time_entry: &TimeEntry) -> Result<(), Error>;
+    async fn update_time_entry(
+        &self,
+        time_entry: &TimeEntry,
+        time_entry_update: &TimeEntryUpdate,
+    ) -> Result<TimeEntry, Error>;
 }

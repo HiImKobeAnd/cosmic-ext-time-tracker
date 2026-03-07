@@ -380,7 +380,7 @@ impl cosmic::Application for AppletModel {
             Message::StartTimer => {
                 if let Some(client) = &self.integration_client {
                     let client = Arc::clone(client);
-                    // REFACTOR make a selected struct which gets sent in the start_new_time_entry
+                    // TODO make a selected struct which gets sent in the start_new_time_entry
                     // avoiding TimeEntryContext
                     if let Some(selected_tracker) = &self.state.selected_tracker {
                         let context = match selected_tracker {
