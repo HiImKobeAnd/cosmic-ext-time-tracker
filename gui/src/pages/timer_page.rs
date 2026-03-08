@@ -305,13 +305,13 @@ impl TimerPage {
                 };
 
                 let client = Arc::clone(client);
-                return cosmic::task::future(async move {
+                cosmic::task::future(async move {
                     let time_entry = client
                         .update_time_entry(&time_entry, &time_entry_update)
                         .await
                         .ok();
                     Message::ExistingTimeEntryGotten(time_entry)
-                });
+                })
             }
             Message::StartTimeFieldUnfocused => {
                 self.start_time_field_text = self

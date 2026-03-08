@@ -1,29 +1,22 @@
 use chrono::{TimeDelta, Utc};
 use cosmic::{
     app,
+    applet::{column::Column, cosmic_panel_config::PanelAnchor, row::Row},
     cosmic_config::CosmicConfigEntry,
     cosmic_theme::Spacing,
-    iced::{
-        border,
-        widget::{column, row},
-        window, Alignment, Color, Length, Subscription,
-    },
+    iced::{border, widget::column, window, Alignment, Color, Length, Subscription},
     iced_winit::commands::popup::{destroy_popup, get_popup},
     theme,
     widget::{
-        autosize,
         button::{self},
         container, icon,
         segmented_button::{self, Entity},
-        tab_bar, Id, Text,
+        tab_bar, Text,
     },
     Element, Task,
 };
 use icu::locale::Locale;
-use std::{
-    sync::{Arc, LazyLock},
-    time::Duration,
-};
+use std::{sync::Arc, time::Duration};
 use tracker_integrations::{
     integration::TrackerIntegration,
     models::{Integration, TimeEntry, TimeEntryContext},
@@ -37,8 +30,6 @@ use crate::{
         timer_page::{self},
     },
 };
-
-static AUTOSIZE_MAIN_ID: LazyLock<Id> = LazyLock::new(|| Id::new("autosize-main"));
 
 fn get_system_locale() -> Locale {
     for var in ["LC_TIME", "LC_ALL", "LANG"] {
@@ -142,83 +133,37 @@ fn color_circle(color: Color, size: f32) -> Element<'static, Message> {
         .into()
 }
 
-impl AppletModel {
-    fn horizontal_layout(&self) -> Element<'_, Message> {
-        let popup_toggle_button = button::icon(icon::from_name("open-menu-symbolic"))
-            .on_press(Message::TogglePopup)
-            .class(cosmic::theme::Button::AppletIcon);
-        match &self.integration_client {
-            None => {
-                Element::from(row!(popup_toggle_button,).align_y(Alignment::Center))
-                // .explain(cosmic::iced::Color::WHITE)
-            }
-            Some(_) => {
-                let applet_height: f32 = self.core.applet.suggested_size(true).1.into();
-
-                let mut indicator_color = Color::WHITE;
-                if let Some(running_time_entry) = &self.state.running_time_entry {
-                    match &running_time_entry.context {
-                        TimeEntryContext::Kimai {
-                            activity_id: _,
-                            project_id: _,
-                        } => {
-                            indicator_color = running_time_entry
-                                .context
-                                .get_activity(&self.state.activities)
-                                .and_then(|a| Color::parse(&a.color))
-                                .unwrap_or(Color::WHITE)
-                        }
-                        TimeEntryContext::Toggl {
-                            workspace_id: _,
-                            project_id: _,
-                        } => {
-                            indicator_color = running_time_entry
-                                .context
-                                .get_project(&self.state.projects)
-                                .and_then(|p| Color::parse(&p.color))
-                                .unwrap_or(Color::WHITE)
-                        }
-                    }
-                } else if let Some(selected_tracker) = &self.state.selected_tracker {
-                    match selected_tracker {
-                        Integration::TogglIntegration => {
-                            indicator_color = self
-                                .state
-                                .selected_project
-                                .as_ref()
-                                .and_then(|p| Color::parse(&p.color))
-                                .unwrap_or(Color::WHITE)
-                        }
-                        Integration::KimaiIntegration => {
-                            indicator_color = self
-                                .state
-                                .selected_activity
-                                .as_ref()
-                                .and_then(|a| Color::parse(&a.color))
-                                .unwrap_or(Color::WHITE)
-                        }
-                    };
-                };
-
-                let project_indicator = color_circle(indicator_color, applet_height / 2.);
-                let counter = match &self.state.running_time_entry {
-                    Some(entry) => button::custom(Text::new(format_duration(
-                        &Utc::now().signed_duration_since(entry.start_time),
-                    )))
-                    .on_press(Message::StopTimer)
-                    .class(cosmic::theme::Button::AppletIcon),
-                    None => button::custom(Text::new(format_duration(&TimeDelta::zero())))
-                        .on_press(Message::StartTimer)
-                        .class(cosmic::theme::Button::AppletIcon),
-                };
-
-                Element::from(
-                    row!(project_indicator, counter, popup_toggle_button,)
-                        .align_y(Alignment::Center),
-                )
-                // .explain(cosmic::iced::Color::WHITE)
-            }
+fn get_indicator_color(state: &GlobalState) -> Option<Color> {
+    if let Some(running_time_entry) = &state.running_time_entry {
+        match running_time_entry.context {
+            TimeEntryContext::Kimai {
+                activity_id: _,
+                project_id: _,
+            } => running_time_entry
+                .context
+                .get_activity(&state.activities)
+                .and_then(|a| Color::parse(&a.color)),
+            TimeEntryContext::Toggl {
+                workspace_id: _,
+                project_id: _,
+            } => running_time_entry
+                .context
+                .get_project(&state.projects)
+                .and_then(|p| Color::parse(&p.color)),
         }
+    } else if let Some(selected_integration) = &state.selected_tracker {
+        match selected_integration {
+            Integration::TogglIntegration => state
+                .selected_project
+                .as_ref()
+                .and_then(|p| Color::parse(&p.color)),
+            Integration::KimaiIntegration => state
+                .selected_activity
+                .as_ref()
+                .and_then(|a| Color::parse(&a.color)),
+        }
+    } else {
+        None
     }
 }
 
@@ -371,8 +316,6 @@ impl cosmic::Application for AppletModel {
             Message::StartTimer => {
                 if let Some(client) = &self.integration_client {
                     let client = Arc::clone(client);
-                    // TODO make a selected struct which gets sent in the start_new_time_entry
-                    // avoiding TimeEntryContext
                     if let Some(selected_tracker) = &self.state.selected_tracker {
                         let context = match selected_tracker {
                             Integration::TogglIntegration => {
@@ -473,7 +416,7 @@ impl cosmic::Application for AppletModel {
                 self.timer_page.integration_client = self.integration_client.clone();
                 self.settings_page.integration_client = self.integration_client.clone();
 
-                if let Some(_) = tracker_integration {
+                if tracker_integration.is_some() {
                     self.tab_model.clear();
                     self.tab_model
                         .insert()
@@ -520,7 +463,48 @@ impl cosmic::Application for AppletModel {
         }
     }
     fn view(&self) -> cosmic::Element<'_, Self::Message> {
-        autosize::autosize(self.horizontal_layout(), AUTOSIZE_MAIN_ID.clone()).into()
+        let popup_btn = button::icon(icon::from_name("open-menu-symbolic"))
+            .on_press(Message::TogglePopup)
+            .class(cosmic::theme::Button::AppletIcon);
+
+        let applet_height: f32 = self.core.applet.suggested_size(true).1.into();
+
+        let indicator_color = get_indicator_color(&self.state).unwrap_or(Color::WHITE);
+
+        let project_indicator = color_circle(indicator_color, applet_height / 2.);
+
+        let counter = match &self.state.running_time_entry {
+            Some(entry) => button::custom(Text::new(format_duration(
+                &Utc::now().signed_duration_since(entry.start_time),
+            )))
+            .on_press(Message::StopTimer)
+            .class(cosmic::theme::Button::AppletIcon),
+            None => button::custom(Text::new(format_duration(&TimeDelta::zero())))
+                .on_press(Message::StartTimer)
+                .class(cosmic::theme::Button::AppletIcon),
+        };
+
+        self.core
+            .applet
+            .autosize_window(if self.integration_client.is_some() {
+                match self.core.applet.anchor {
+                    PanelAnchor::Left | PanelAnchor::Right => Element::from(
+                        Column::with_children([
+                            project_indicator,
+                            counter.into(),
+                            popup_btn.into(),
+                        ])
+                        .align_x(Alignment::Center),
+                    ),
+                    PanelAnchor::Top | PanelAnchor::Bottom => Element::from(
+                        Row::with_children([project_indicator, counter.into(), popup_btn.into()])
+                            .align_y(Alignment::Center),
+                    ),
+                }
+            } else {
+                popup_btn.into()
+            })
+            .into()
     }
 
     fn view_window(&self, _id: window::Id) -> Element<'_, Self::Message> {
@@ -541,8 +525,6 @@ impl cosmic::Application for AppletModel {
         self.core
             .applet
             .popup_container(container(column![tab_bar_element, content]))
-            .min_height(600.) // !HACK Fix for dropdown getting cut off
-            .min_width(400.) // !HACK Fix for dropdown getting cut off
             .into()
     }
 
