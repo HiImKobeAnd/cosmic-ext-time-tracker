@@ -77,7 +77,6 @@ pub struct AppletModel {
     tab_model: segmented_button::SingleSelectModel,
     popup: Option<window::Id>,
     settings_page: settings_page::SettingsPage,
-    popup_page: Page,
     timer_page: timer_page::TimerPage,
     time_entries_page: time_entries_page::TimeEntriesPage,
     integration_client: Option<Arc<dyn TrackerIntegration>>,
@@ -250,12 +249,6 @@ impl cosmic::Application for AppletModel {
         let mut tab_model = segmented_button::SingleSelectModel::default();
         tab_model
             .insert()
-            .text("Timer")
-            .activate()
-            .data::<Page>(Page::Timer);
-        tab_model.insert().text("Log").data::<Page>(Page::Log);
-        tab_model
-            .insert()
             .text("Settings")
             .data::<Page>(Page::Settings);
 
@@ -284,10 +277,9 @@ impl cosmic::Application for AppletModel {
                 popup: None,
                 locale: get_system_locale(),
                 tab_model,
-                settings_page,
                 state,
                 state_handler,
-                popup_page: Page::Settings,
+                settings_page,
                 timer_page,
                 time_entries_page,
                 integration_client,
@@ -330,9 +322,6 @@ impl cosmic::Application for AppletModel {
             Message::Tick => Task::none(),
             Message::TabChanged(entity) => {
                 self.tab_model.activate(entity);
-                if let Some(page) = self.tab_model.data::<Page>(entity) {
-                    self.popup_page = page.clone();
-                }
                 Task::none()
             }
             Message::TimerPage(message) => {
@@ -483,7 +472,26 @@ impl cosmic::Application for AppletModel {
                 self.integration_client = tracker_integration.clone();
                 self.timer_page.integration_client = self.integration_client.clone();
                 self.settings_page.integration_client = self.integration_client.clone();
-                self.popup_page = Page::Timer;
+
+                if let Some(_) = tracker_integration {
+                    self.tab_model.clear();
+                    self.tab_model
+                        .insert()
+                        .text("Timer")
+                        .activate()
+                        .data::<Page>(Page::Timer);
+                    self.tab_model.insert().text("Log").data::<Page>(Page::Log);
+                    self.tab_model
+                        .insert()
+                        .text("Settings")
+                        .data::<Page>(Page::Settings);
+                } else {
+                    self.tab_model.clear();
+                    self.tab_model
+                        .insert()
+                        .text("Settings")
+                        .data::<Page>(Page::Settings);
+                }
 
                 let mut startup_tasks: Vec<Task<Message>> = Vec::new();
                 startup_tasks.push(cosmic::task::message(
@@ -517,14 +525,15 @@ impl cosmic::Application for AppletModel {
 
     fn view_window(&self, _id: window::Id) -> Element<'_, Self::Message> {
         let Spacing { .. } = theme::active().cosmic().spacing;
-        let content = match &self.integration_client {
-            Some(_) => match self.popup_page {
+
+        let mut content = self.settings_page.view().map(Message::SettingsPage);
+        if let Some(data) = self.tab_model.data::<Page>(self.tab_model.active()) {
+            content = match data {
                 Page::Timer => self.timer_page.view().map(Message::TimerPage),
                 Page::Log => self.time_entries_page.view().map(Message::TimeEntriesPage),
                 Page::Settings => self.settings_page.view().map(Message::SettingsPage),
-            },
-            None => self.settings_page.view().map(Message::SettingsPage),
-        };
+            }
+        }
 
         let tab_bar = tab_bar::horizontal(&self.tab_model).on_activate(Message::TabChanged);
         let tab_bar_element = Element::from(tab_bar);

@@ -319,7 +319,7 @@ impl TimerPage {
                     .running_time_entry
                     .clone()
                     .map(|e| e.start_time.format("%H:%M").to_string())
-                    .unwrap_or("No Time".to_string());
+                    .unwrap_or("No running timer".to_string());
                 Task::none()
             }
         }
@@ -356,7 +356,7 @@ impl TimerPage {
             .running_time_entry
             .clone()
             .map(|e| e.start_time.format("%H:%M").to_string())
-            .unwrap_or("No Time".to_string());
+            .unwrap_or("No running timer".to_string());
 
         TimerPage {
             state,
