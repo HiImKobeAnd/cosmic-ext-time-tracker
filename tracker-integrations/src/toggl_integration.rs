@@ -114,9 +114,10 @@ impl From<TogglTimeEntry> for TimeEntry {
             start_time: raw.start,
             stop_time: raw.stop,
             // tags: todo!(),
-            context: TimeEntryContext::Toggl {
-                workspace_id: ApiId::Int(raw.workspace_id),
+            context: TimeEntryContext {
+                workspace_id: Some(ApiId::Int(raw.workspace_id)),
                 project_id: raw.project_id.map(ApiId::Int),
+                activity_id: None,
             },
         }
     }
@@ -172,12 +173,8 @@ impl TrackerIntegration for TogglClient {
         time_entry_id: ApiId,
     ) -> Result<(), Error> {
         tracing::info!("Stopping time entry.");
-        let TimeEntryContext::Toggl {
-            workspace_id,
-            project_id: _,
-        } = time_entry_context
-        else {
-            return Err(Error::WrongTimeEntryContext);
+        let Some(workspace_id) = time_entry_context.workspace_id else {
+            return Err(Error::MissingRequiredField("Workspace ID".to_string()));
         };
 
         let _resp = self
@@ -199,12 +196,11 @@ impl TrackerIntegration for TogglClient {
         description: Option<String>,
     ) -> Result<TimeEntry, Error> {
         tracing::info!("Starting new time entry.");
-        let TimeEntryContext::Toggl {
-            workspace_id,
-            project_id,
-        } = time_entry_context
-        else {
-            return Err(Error::WrongTimeEntryContext);
+        let Some(workspace_id) = time_entry_context.workspace_id else {
+            return Err(Error::MissingRequiredField("Workspace ID".to_string()));
+        };
+        let Some(project_id) = time_entry_context.project_id else {
+            return Err(Error::MissingRequiredField("Project ID".to_string()));
         };
 
         let body = json!({
@@ -238,9 +234,8 @@ impl TrackerIntegration for TogglClient {
         time_entry_update: &TimeEntryUpdate,
     ) -> Result<TimeEntry, Error> {
         tracing::info!("Updaing time entry {}.", time_entry.id);
-
-        let TimeEntryContext::Toggl { workspace_id, .. } = &time_entry.context else {
-            return Err(Error::WrongProjectContext);
+        let Some(workspace_id) = &time_entry.context.workspace_id else {
+            return Err(Error::MissingRequiredField("Workspace ID".to_string()));
         };
 
         let body = json!({

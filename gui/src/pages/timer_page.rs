@@ -37,9 +37,9 @@ pub enum Message {
     ProjectsGotten(Option<Vec<Project>>),
     GetActivities,
     ActivitiesGotten(Option<Vec<Activity>>),
-    WorkspaceSelected(usize),
-    ProjectSelected(usize),
-    ActivitySelected(usize),
+    WorkspaceChanged(usize),
+    ProjectChanged(usize),
+    ActivityChanged(usize),
     DescriptionChanged(String),
     GetExistingTimeEntry,
     ExistingTimeEntryGotten(Option<TimeEntry>),
@@ -68,7 +68,7 @@ impl TimerPage {
                 .map(|x| x.name.clone())
                 .collect::<Vec<String>>(),
             self.current_workspace,
-            Message::WorkspaceSelected,
+            Message::WorkspaceChanged,
         );
         let project_selector = dropdown::dropdown(
             self.state
@@ -77,7 +77,7 @@ impl TimerPage {
                 .map(|x| x.name.clone())
                 .collect::<Vec<String>>(),
             self.current_project,
-            Message::ProjectSelected,
+            Message::ProjectChanged,
         );
         let activity_selector = dropdown::dropdown(
             self.state
@@ -86,7 +86,7 @@ impl TimerPage {
                 .map(|x| x.name.clone())
                 .collect::<Vec<String>>(),
             self.current_activity,
-            Message::ActivitySelected,
+            Message::ActivityChanged,
         );
         let description_input = text_input::text_input(
             "Description",
@@ -139,7 +139,7 @@ impl TimerPage {
                 }
                 Task::none()
             }
-            Message::WorkspaceSelected(index) => {
+            Message::WorkspaceChanged(index) => {
                 self.current_workspace = Some(index);
                 let _ = self.state.set_selected_workspace(
                     &self.state_handler,
@@ -150,7 +150,7 @@ impl TimerPage {
                     workspace_id: self.state.workspaces[index].id.clone(),
                 }))
             }
-            Message::ProjectSelected(index) => {
+            Message::ProjectChanged(index) => {
                 self.current_project = Some(index);
                 let _ = self.state.set_selected_project(
                     &self.state_handler,
@@ -223,7 +223,7 @@ impl TimerPage {
                             if let Some(project_index) =
                                 self.state.projects.iter().position(|p| p.id == project_id)
                             {
-                                return cosmic::task::message(Message::ProjectSelected(
+                                return cosmic::task::message(Message::ProjectChanged(
                                     project_index,
                                 ));
                             };
@@ -238,7 +238,7 @@ impl TimerPage {
                                 .iter()
                                 .position(|w| w.id == workspace_id)
                             {
-                                return cosmic::task::message(Message::WorkspaceSelected(
+                                return cosmic::task::message(Message::WorkspaceChanged(
                                     workspace_index,
                                 ));
                             };
@@ -268,7 +268,7 @@ impl TimerPage {
                 }
                 Task::none()
             }
-            Message::ActivitySelected(index) => {
+            Message::ActivityChanged(index) => {
                 self.current_activity = Some(index);
                 let _ = self.state.set_selected_activity(
                     &self.state_handler,

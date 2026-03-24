@@ -8,7 +8,7 @@ use cosmic::{
 
 pub struct TimeEntriesPage {
     time_entries: Vec<String>,
-        counter: i32,
+    counter: i32,
     counter_text: String,
 }
 

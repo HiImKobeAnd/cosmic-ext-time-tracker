@@ -135,9 +135,10 @@ impl From<KimaiTimeEntry> for TimeEntry {
             duration: Duration::zero(), // TODO
             start_time: raw.begin,
             stop_time: raw.end,
-            context: TimeEntryContext::Kimai {
-                activity_id: ApiId::Int(raw.activity),
-                project_id: ApiId::Int(raw.project),
+            context: TimeEntryContext {
+                activity_id: Some(ApiId::Int(raw.activity)),
+                project_id: Some(ApiId::Int(raw.project)),
+                workspace_id: None,
             },
         }
     }
@@ -240,12 +241,11 @@ impl TrackerIntegration for KimaiClient {
         description: Option<String>,
     ) -> Result<TimeEntry, Error> {
         tracing::info!("Starting new time entry.");
-        let TimeEntryContext::Kimai {
-            activity_id,
-            project_id,
-        } = time_entry_context
-        else {
-            return Err(Error::WrongTimeEntryContext);
+        let Some(activity_id) = time_entry_context.activity_id else {
+            return Err(Error::MissingRequiredField("Activity ID".to_string()));
+        };
+        let Some(project_id) = time_entry_context.project_id else {
+            return Err(Error::MissingRequiredField("Project ID".to_string()));
         };
 
         let body = json!({

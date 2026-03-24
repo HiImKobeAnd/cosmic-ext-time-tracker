@@ -306,7 +306,6 @@ impl cosmic::Application for AppletModel {
                         }
                     })
             }
-
             Message::CloseRequested(id) => {
                 if (Some(id)) == self.popup {
                     self.popup = None;

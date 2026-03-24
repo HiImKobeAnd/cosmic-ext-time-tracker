@@ -14,4 +14,6 @@ pub enum Error {
     WrongTimeEntryContext,
     #[error("wrong project context given")]
     WrongProjectContext,
+    #[error("missing required field `{0}`")]
+    MissingRequiredField(String),
 }

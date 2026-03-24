@@ -137,52 +137,33 @@ impl Default for ProjectContext {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
-pub enum TimeEntryContext {
-    Kimai {
-        activity_id: ApiId,
-        project_id: ApiId,
-    },
-    Toggl {
-        workspace_id: ApiId,
-        project_id: Option<ApiId>,
-    },
-}
-
-impl Default for TimeEntryContext {
-    fn default() -> Self {
-        Self::Kimai {
-            activity_id: ApiId::default(),
-            project_id: ApiId::default(),
-        }
-    }
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Default)]
+pub struct TimeEntryContext {
+    pub activity_id: Option<ApiId>,
+    pub workspace_id: Option<ApiId>,
+    pub project_id: Option<ApiId>,
 }
 
 impl TimeEntryContext {
     pub fn get_activity<'a>(&self, activities: &'a [Activity]) -> Option<&'a Activity> {
-        match &self {
-            TimeEntryContext::Kimai { activity_id, .. } => {
-                activities.iter().find(|a| a.id == *activity_id)
-            }
-            _ => None,
+        if let Some(activity_id) = &self.activity_id {
+            activities.iter().find(|a| a.id == *activity_id)
+        } else {
+            None
         }
     }
     pub fn get_project<'a>(&self, projects: &'a [Project]) -> Option<&'a Project> {
-        match &self {
-            TimeEntryContext::Kimai { project_id, .. } => {
-                projects.iter().find(|p| p.id == *project_id)
-            }
-            TimeEntryContext::Toggl { project_id, .. } => project_id
-                .as_ref()
-                .and_then(|id| projects.iter().find(|p| p.id == *id)),
+        if let Some(project_id) = &self.project_id {
+            projects.iter().find(|a| a.id == *project_id)
+        } else {
+            None
         }
     }
     pub fn get_workspace<'a>(&self, workspaces: &'a [Workspace]) -> Option<&'a Workspace> {
-        match &self {
-            TimeEntryContext::Toggl { workspace_id, .. } => {
-                workspaces.iter().find(|w| w.id == *workspace_id)
-            }
-            _ => None,
+        if let Some(workspace_id) = &self.workspace_id {
+            workspaces.iter().find(|a| a.id == *workspace_id)
+        } else {
+            None
         }
     }
 }
