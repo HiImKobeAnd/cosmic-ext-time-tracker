@@ -15,12 +15,9 @@ pub trait TrackerIntegration: Debug + Send + Sync {
     async fn validate_authentication(&self) -> Result<bool, Error>;
     async fn get_current_time_entry(&self) -> Result<Option<TimeEntry>, Error>;
     async fn get_project_activities(&self, project_id: ApiId) -> Result<Vec<Activity>, Error>;
-    async fn get_projects(&self, project_context: ProjectContext) -> Result<Vec<Project>, Error>;
-    async fn get_user_workspaces(&self) -> Result<Vec<Workspace>, Error>;
-    // async fn get_workspace_projects(
-    //     &self,
-    //     workspace_id: ApiId,
-    // ) -> Result<Vec<Project>, reqwest::Error>;
+    async fn get_all_workspaces(&self) -> Result<Vec<Workspace>, Error>;
+    async fn get_all_projects(&self) -> Result<Vec<Project>, Error>;
+    async fn get_all_activities(&self) -> Result<Vec<Activity>, Error>;
     async fn stop_time_entry(
         &self,
         time_entry_context: TimeEntryContext,
