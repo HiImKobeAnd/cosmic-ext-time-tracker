@@ -143,12 +143,12 @@ fn get_indicator_color(state: &GlobalState) -> Option<Color> {
             Integration::TogglIntegration => running_time_entry
                 .clone()
                 .context
-                .get_activity(&state.activities)
+                .get_project(&state.projects)
                 .and_then(|a| Color::parse(&a.color)),
             Integration::KimaiIntegration => running_time_entry
                 .clone()
                 .context
-                .get_project(&state.projects)
+                .get_activity(&state.activities)
                 .and_then(|p| Color::parse(&p.color)),
         }
     } else {
@@ -419,17 +419,13 @@ impl cosmic::Application for AppletModel {
                 startup_tasks.push(cosmic::task::message(
                     timer_page::Message::GetExistingTimeEntry,
                 ));
+                startup_tasks.push(cosmic::task::message(timer_page::Message::GetProjects));
 
                 if let Some(selected_tracker) = &self.state.selected_tracker {
                     match selected_tracker {
                         Integration::TogglIntegration => startup_tasks
                             .push(cosmic::task::message(timer_page::Message::GetWorkspaces)),
                         Integration::KimaiIntegration => {
-                            startup_tasks.push(cosmic::task::message(
-                                timer_page::Message::GetProjects(
-                                    tracker_integrations::models::ProjectContext::Kimai,
-                                ),
-                            ));
                             startup_tasks
                                 .push(cosmic::task::message(timer_page::Message::GetActivities));
                         }

@@ -178,7 +178,7 @@ impl TrackerIntegration for TogglClient {
         tracing::info!("Getting all projects.");
         let resp: Vec<TogglProject> = self
             .client
-            .get(format!("https://api.track.toggl.com/api/v9/me/workspaces"))
+            .get("https://api.track.toggl.com/api/v9/me/projects")
             .basic_auth(&self.api_key, Some("api_token"))
             .header(CONTENT_TYPE, "application/json")
             .send()

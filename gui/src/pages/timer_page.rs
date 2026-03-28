@@ -33,7 +33,7 @@ pub struct TimerPage {
 pub enum Message {
     GetWorkspaces,
     WorkspacesGotten(Option<Vec<Workspace>>),
-    GetProjects(ProjectContext),
+    GetProjects,
     ProjectsGotten(Option<Vec<Project>>),
     GetActivities,
     ActivitiesGotten(Option<Vec<Activity>>),
@@ -74,6 +74,18 @@ impl TimerPage {
             self.state
                 .projects
                 .iter()
+                .filter(|x| {
+                    if let ProjectContext::Toggl { workspace_id } = &x.context {
+                        return self
+                            .state
+                            .selected_workspace
+                            .as_ref()
+                            .map_or(false, |selected_workspace| {
+                                *workspace_id == selected_workspace.id
+                            });
+                    }
+                    true
+                })
                 .map(|x| x.name.clone())
                 .collect::<Vec<String>>(),
             self.current_project,
@@ -83,6 +95,13 @@ impl TimerPage {
             self.state
                 .activities
                 .iter()
+                .filter(|x| {
+                    if let Some(selected_project) = &self.state.selected_project {
+                        x.project_id == selected_project.id
+                    } else {
+                        false
+                    }
+                })
                 .map(|x| x.name.clone())
                 .collect::<Vec<String>>(),
             self.current_activity,
@@ -121,11 +140,12 @@ impl TimerPage {
 
     pub fn update(&mut self, message: Message) -> app::Task<Message> {
         match message {
+            // Fetching
             Message::GetWorkspaces => {
                 if let Some(client) = &self.integration_client {
                     let client = Arc::clone(client);
                     return cosmic::task::future(async move {
-                        let workspaces = client.get_user_workspaces().await.ok();
+                        let workspaces = client.get_all_workspaces().await.ok();
                         Message::WorkspacesGotten(workspaces)
                     });
                 };
@@ -139,38 +159,11 @@ impl TimerPage {
                 }
                 Task::none()
             }
-            Message::WorkspaceChanged(index) => {
-                self.current_workspace = Some(index);
-                let _ = self.state.set_selected_workspace(
-                    &self.state_handler,
-                    Some(self.state.workspaces[index].clone()),
-                );
-                let _ = self.state.set_selected_project(&self.state_handler, None);
-                cosmic::task::message(Message::GetProjects(ProjectContext::Toggl {
-                    workspace_id: self.state.workspaces[index].id.clone(),
-                }))
-            }
-            Message::ProjectChanged(index) => {
-                self.current_project = Some(index);
-                let _ = self.state.set_selected_project(
-                    &self.state_handler,
-                    Some(self.state.projects[index].clone()),
-                );
-                if let Some(selected_tracker) = &self.state.selected_tracker {
-                    match selected_tracker {
-                        Integration::KimaiIntegration => {
-                            return cosmic::task::message(Message::GetActivities);
-                        }
-                        _ => return Task::none(),
-                    }
-                }
-                Task::none()
-            }
-            Message::GetProjects(context) => {
+            Message::GetProjects => {
                 if let Some(client) = &self.integration_client {
                     let client = Arc::clone(client);
                     return cosmic::task::future(async move {
-                        let projects = client.get_projects(context).await.ok();
+                        let projects = client.get_all_projects().await.ok();
                         Message::ProjectsGotten(projects)
                     });
                 };
@@ -184,6 +177,51 @@ impl TimerPage {
                 }
                 Task::none()
             }
+            Message::GetActivities => {
+                if let Some(client) = &self.integration_client {
+                    let client = Arc::clone(client);
+                    return cosmic::task::future(async move {
+                        let activities = client.get_all_activities().await.ok();
+                        Message::ActivitiesGotten(activities)
+                    });
+                }
+                Task::none()
+            }
+            Message::ActivitiesGotten(activities) => {
+                if let Some(activities) = activities {
+                    let _ = self
+                        .state
+                        .set_activities(&self.state_handler, activities.clone());
+                }
+                Task::none()
+            }
+            // State change
+            Message::WorkspaceChanged(index) => {
+                self.current_workspace = Some(index);
+                let _ = self.state.set_selected_workspace(
+                    &self.state_handler,
+                    Some(self.state.workspaces[index].clone()),
+                );
+                let _ = self.state.set_selected_project(&self.state_handler, None);
+                Task::none()
+            }
+            Message::ProjectChanged(index) => {
+                self.current_project = Some(index);
+                let _ = self.state.set_selected_project(
+                    &self.state_handler,
+                    Some(self.state.projects[index].clone()),
+                );
+                let _ = self.state.set_selected_activity(&self.state_handler, None);
+                Task::none()
+            }
+            Message::ActivityChanged(index) => {
+                self.current_activity = Some(index);
+                let _ = self.state.set_selected_activity(
+                    &self.state_handler,
+                    Some(self.state.activities[index].clone()),
+                );
+                Task::none()
+            }
             Message::DescriptionChanged(description) => {
                 let desc = match description.is_empty() {
                     true => None,
@@ -195,6 +233,7 @@ impl TimerPage {
                     .set_current_description(&self.state_handler, desc);
                 Task::none()
             }
+            // Other
             Message::GetExistingTimeEntry => {
                 if let Some(client) = &self.integration_client {
                     let client = Arc::clone(client);
@@ -215,70 +254,10 @@ impl TimerPage {
 
                 if let Some(time_entry) = time_entry {
                     self.start_time_field_text = time_entry.start_time.format("%H:%M").to_string();
+                }
+                Task::none()
+            }
 
-                    // Triggers a fetch for either workspaces or projects based on the type of
-                    // timeentrycontext
-                    // match time_entry.context {
-                    //     TimeEntryContext::Kimai {
-                    //         activity_id: _,
-                    //         project_id,
-                    //     } => {
-                    //         if let Some(project_index) =
-                    //             self.state.projects.iter().position(|p| p.id == project_id)
-                    //         {
-                    //             return cosmic::task::message(Message::ProjectChanged(
-                    //                 project_index,
-                    //             ));
-                    //         };
-                    //     }
-                    //     TimeEntryContext::Toggl {
-                    //         workspace_id,
-                    //         project_id: _,
-                    //     } => {
-                    //         if let Some(workspace_index) = self
-                    //             .state
-                    //             .workspaces
-                    //             .iter()
-                    //             .position(|w| w.id == workspace_id)
-                    //         {
-                    //             return cosmic::task::message(Message::WorkspaceChanged(
-                    //                 workspace_index,
-                    //             ));
-                    //         };
-                    //     }
-                    // }
-                }
-                Task::none()
-            }
-            Message::GetActivities => {
-                if let Some(client) = &self.integration_client {
-                    let client = Arc::clone(client);
-                    if let Some(selected_project) = &self.state.selected_project {
-                        let project_id = selected_project.id.clone();
-                        return cosmic::task::future(async move {
-                            let activities = client.get_project_activities(project_id).await.ok();
-                            Message::ActivitiesGotten(activities)
-                        });
-                    }
-                }
-                Task::none()
-            }
-            Message::ActivitiesGotten(activities) => {
-                if let Some(activities) = activities {
-                    let _ = self
-                        .state
-                        .set_activities(&self.state_handler, activities.clone());
-                }
-                Task::none()
-            }
-            Message::ActivityChanged(index) => {
-                self.current_activity = Some(index);
-                let _ = self.state.set_selected_activity(
-                    &self.state_handler,
-                    Some(self.state.activities[index].clone()),
-                );
-                Task::none()
-            }
             Message::StartTimeFieldTextChanged(text) => {
                 self.start_time_field_text = text;
                 Task::none()
