@@ -134,25 +134,25 @@ fn color_circle(color: Color, size: f32) -> Element<'static, Message> {
 }
 
 fn get_indicator_color(state: &GlobalState) -> Option<Color> {
+    let Some(selected_tracker) = &state.selected_tracker else {
+        return None;
+    };
+
     if let Some(running_time_entry) = &state.running_time_entry {
-        match running_time_entry.context {
-            TimeEntryContext::Kimai {
-                activity_id: _,
-                project_id: _,
-            } => running_time_entry
+        match selected_tracker {
+            Integration::TogglIntegration => running_time_entry
+                .clone()
                 .context
                 .get_activity(&state.activities)
                 .and_then(|a| Color::parse(&a.color)),
-            TimeEntryContext::Toggl {
-                workspace_id: _,
-                project_id: _,
-            } => running_time_entry
+            Integration::KimaiIntegration => running_time_entry
+                .clone()
                 .context
                 .get_project(&state.projects)
                 .and_then(|p| Color::parse(&p.color)),
         }
-    } else if let Some(selected_integration) = &state.selected_tracker {
-        match selected_integration {
+    } else {
+        match selected_tracker {
             Integration::TogglIntegration => state
                 .selected_project
                 .as_ref()
@@ -162,8 +162,6 @@ fn get_indicator_color(state: &GlobalState) -> Option<Color> {
                 .as_ref()
                 .and_then(|a| Color::parse(&a.color)),
         }
-    } else {
-        None
     }
 }
 
@@ -315,41 +313,23 @@ impl cosmic::Application for AppletModel {
             Message::StartTimer => {
                 if let Some(client) = &self.integration_client {
                     let client = Arc::clone(client);
-                    if let Some(selected_tracker) = &self.state.selected_tracker {
-                        let context = match selected_tracker {
-                            Integration::TogglIntegration => {
-                                let Some(workspace) = &self.state.selected_workspace else {
-                                    return Task::none();
-                                };
-                                TimeEntryContext::Toggl {
-                                    workspace_id: workspace.id.clone(),
-                                    project_id: self.state.selected_project.clone().map(|x| x.id),
-                                }
-                            }
-                            Integration::KimaiIntegration => {
-                                let (Some(activity), Some(project)) =
-                                    (&self.state.selected_activity, &self.state.selected_project)
-                                else {
-                                    return Task::none();
-                                };
-                                TimeEntryContext::Kimai {
-                                    activity_id: activity.clone().id,
-                                    project_id: project.clone().id,
-                                }
-                            }
-                        };
 
-                        let current_description = self.state.current_description.clone();
-                        return cosmic::task::future(async move {
-                            let time_entry = client
-                                .start_new_time_entry(context, current_description)
-                                .await;
-                            if let Ok(time_entry) = time_entry {
-                                return Message::TimerStarted(time_entry);
-                            }
-                            Message::Tick // TODO Tick used as an escape.
-                        });
-                    }
+                    let context = TimeEntryContext {
+                        activity_id: self.state.selected_activity.clone().map(|a| a.id),
+                        workspace_id: self.state.selected_workspace.clone().map(|w| w.id),
+                        project_id: self.state.selected_project.clone().map(|p| p.id),
+                    };
+                    let current_description = self.state.current_description.clone();
+
+                    return cosmic::task::future(async move {
+                        let time_entry = client
+                            .start_new_time_entry(context, current_description)
+                            .await;
+                        if let Ok(time_entry) = time_entry {
+                            return Message::TimerStarted(time_entry);
+                        }
+                        Message::Tick // TODO Tick used as an escape.
+                    });
                 }
                 Task::none()
             }

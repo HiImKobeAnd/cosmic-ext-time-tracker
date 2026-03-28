@@ -216,6 +216,10 @@ impl TrackerIntegration for KimaiClient {
         Ok(resp.into_iter().map(Into::into).collect())
     }
 
+    async fn get_user_workspaces(&self) -> Result<Vec<crate::models::Workspace>, Error> {
+        todo!()
+    }
+
     async fn stop_time_entry(
         &self,
         _time_entry_context: TimeEntryContext,
@@ -294,9 +298,5 @@ impl TrackerIntegration for KimaiClient {
             .json()
             .await?;
         Ok(resp.into())
-    }
-
-    async fn get_user_workspaces(&self) -> Result<Vec<crate::models::Workspace>, Error> {
-        todo!()
     }
 }

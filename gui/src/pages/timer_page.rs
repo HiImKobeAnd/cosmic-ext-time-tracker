@@ -215,35 +215,38 @@ impl TimerPage {
 
                 if let Some(time_entry) = time_entry {
                     self.start_time_field_text = time_entry.start_time.format("%H:%M").to_string();
-                    match time_entry.context {
-                        TimeEntryContext::Kimai {
-                            activity_id: _,
-                            project_id,
-                        } => {
-                            if let Some(project_index) =
-                                self.state.projects.iter().position(|p| p.id == project_id)
-                            {
-                                return cosmic::task::message(Message::ProjectChanged(
-                                    project_index,
-                                ));
-                            };
-                        }
-                        TimeEntryContext::Toggl {
-                            workspace_id,
-                            project_id: _,
-                        } => {
-                            if let Some(workspace_index) = self
-                                .state
-                                .workspaces
-                                .iter()
-                                .position(|w| w.id == workspace_id)
-                            {
-                                return cosmic::task::message(Message::WorkspaceChanged(
-                                    workspace_index,
-                                ));
-                            };
-                        }
-                    }
+
+                    // Triggers a fetch for either workspaces or projects based on the type of
+                    // timeentrycontext
+                    // match time_entry.context {
+                    //     TimeEntryContext::Kimai {
+                    //         activity_id: _,
+                    //         project_id,
+                    //     } => {
+                    //         if let Some(project_index) =
+                    //             self.state.projects.iter().position(|p| p.id == project_id)
+                    //         {
+                    //             return cosmic::task::message(Message::ProjectChanged(
+                    //                 project_index,
+                    //             ));
+                    //         };
+                    //     }
+                    //     TimeEntryContext::Toggl {
+                    //         workspace_id,
+                    //         project_id: _,
+                    //     } => {
+                    //         if let Some(workspace_index) = self
+                    //             .state
+                    //             .workspaces
+                    //             .iter()
+                    //             .position(|w| w.id == workspace_id)
+                    //         {
+                    //             return cosmic::task::message(Message::WorkspaceChanged(
+                    //                 workspace_index,
+                    //             ));
+                    //         };
+                    //     }
+                    // }
                 }
                 Task::none()
             }
