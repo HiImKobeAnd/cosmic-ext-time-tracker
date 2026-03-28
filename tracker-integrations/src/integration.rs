@@ -4,10 +4,7 @@ use async_trait::async_trait;
 
 use crate::{
     error::Error,
-    models::{
-        Activity, ApiId, Project, ProjectContext, TimeEntry, TimeEntryContext, TimeEntryUpdate,
-        Workspace,
-    },
+    models::{Activity, ApiId, Project, TimeEntry, TimeEntryContext, TimeEntryUpdate, Workspace},
 };
 
 #[async_trait]

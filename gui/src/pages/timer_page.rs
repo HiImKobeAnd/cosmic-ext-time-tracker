@@ -12,10 +12,7 @@ use cosmic::{
 use std::sync::Arc;
 use tracker_integrations::{
     integration::TrackerIntegration,
-    models::{
-        Activity, Integration, Project, ProjectContext, TimeEntry, TimeEntryContext,
-        TimeEntryUpdate, Workspace,
-    },
+    models::{Activity, Project, ProjectContext, TimeEntry, TimeEntryUpdate, Workspace},
 };
 
 pub struct TimerPage {
@@ -76,13 +73,9 @@ impl TimerPage {
                 .iter()
                 .filter(|x| {
                     if let ProjectContext::Toggl { workspace_id } = &x.context {
-                        return self
-                            .state
-                            .selected_workspace
-                            .as_ref()
-                            .map_or(false, |selected_workspace| {
-                                *workspace_id == selected_workspace.id
-                            });
+                        return self.state.selected_workspace.as_ref().is_some_and(
+                            |selected_workspace| *workspace_id == selected_workspace.id,
+                        );
                     }
                     true
                 })
