@@ -10,8 +10,8 @@ use crate::{
     error::Error,
     integration::TrackerIntegration,
     models::{
-        ApiId, Project, ProjectContext, Tag, TimeEntry, TimeEntryContext, TimeEntryUpdate,
-        Workspace,
+        Activity, ApiId, Project, ProjectContext, Tag, TimeEntry, TimeEntryContext,
+        TimeEntryUpdate, Workspace,
     },
 };
 
@@ -153,8 +153,15 @@ impl TrackerIntegration for TogglClient {
         }
     }
 
-    async fn get_user_workspaces(&self) -> Result<Vec<Workspace>, Error> {
-        tracing::info!("Getting user workspaces.");
+    async fn get_project_activities(
+        &self,
+        _project_id: ApiId,
+    ) -> Result<Vec<crate::models::Activity>, Error> {
+        todo!()
+    }
+
+    async fn get_all_workspaces(&self) -> Result<Vec<Workspace>, Error> {
+        tracing::info!("Getting all workspaces.");
         let resp: Vec<TogglWorkspace> = self
             .client
             .get("https://api.track.toggl.com/api/v9/me/workspaces")
@@ -165,6 +172,24 @@ impl TrackerIntegration for TogglClient {
             .json()
             .await?;
         Ok(resp.into_iter().map(Into::into).collect())
+    }
+
+    async fn get_all_projects(&self) -> Result<Vec<Project>, Error> {
+        tracing::info!("Getting all projects.");
+        let resp: Vec<TogglProject> = self
+            .client
+            .get(format!("https://api.track.toggl.com/api/v9/me/workspaces"))
+            .basic_auth(&self.api_key, Some("api_token"))
+            .header(CONTENT_TYPE, "application/json")
+            .send()
+            .await?
+            .json()
+            .await?;
+        Ok(resp.into_iter().map(Into::into).collect())
+    }
+
+    async fn get_all_activities(&self) -> Result<Vec<Activity>, Error> {
+        todo!()
     }
 
     async fn stop_time_entry(
@@ -260,32 +285,5 @@ impl TrackerIntegration for TogglClient {
             .json()
             .await?;
         Ok(resp.into())
-    }
-
-    async fn get_project_activities(
-        &self,
-        _project_id: ApiId,
-    ) -> Result<Vec<crate::models::Activity>, Error> {
-        todo!()
-    }
-
-    async fn get_projects(&self, project_context: ProjectContext) -> Result<Vec<Project>, Error> {
-        tracing::info!("Getting workspace projects.");
-        let ProjectContext::Toggl { workspace_id } = project_context else {
-            return Err(Error::WrongProjectContext);
-        };
-
-        let resp: Vec<TogglProject> = self
-            .client
-            .get(format!(
-                "https://api.track.toggl.com/api/v9/workspaces/{workspace_id}/projects"
-            ))
-            .basic_auth(&self.api_key, Some("api_token"))
-            .header(CONTENT_TYPE, "application/json")
-            .send()
-            .await?
-            .json()
-            .await?;
-        Ok(resp.into_iter().map(Into::into).collect())
     }
 }

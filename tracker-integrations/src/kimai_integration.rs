@@ -202,8 +202,12 @@ impl TrackerIntegration for KimaiClient {
         Ok(resp.into_iter().map(Into::into).collect())
     }
 
-    async fn get_projects(&self, _project_context: ProjectContext) -> Result<Vec<Project>, Error> {
-        tracing::info!("Getting projects.");
+    async fn get_all_workspaces(&self) -> Result<Vec<crate::models::Workspace>, Error> {
+        todo!()
+    }
+
+    async fn get_all_projects(&self) -> Result<Vec<Project>, Error> {
+        tracing::info!("Getting all projects.");
         let resp: Vec<KimaiProject> = self
             .client
             .get(self.base_url.join("api/projects")?)
@@ -216,8 +220,18 @@ impl TrackerIntegration for KimaiClient {
         Ok(resp.into_iter().map(Into::into).collect())
     }
 
-    async fn get_user_workspaces(&self) -> Result<Vec<crate::models::Workspace>, Error> {
-        todo!()
+    async fn get_all_activities(&self) -> Result<Vec<Activity>, Error> {
+        tracing::info!("Getting all activities.");
+        let resp: Vec<KimaiActivity> = self
+            .client
+            .get(self.base_url.join("api/activities")?)
+            .bearer_auth(&self.api_key)
+            .header(CONTENT_TYPE, "application/json")
+            .send()
+            .await?
+            .json()
+            .await?;
+        Ok(resp.into_iter().map(Into::into).collect())
     }
 
     async fn stop_time_entry(
