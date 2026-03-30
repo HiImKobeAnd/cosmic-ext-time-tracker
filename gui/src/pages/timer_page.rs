@@ -24,6 +24,7 @@ pub struct TimerPage {
     current_activity: Option<usize>,
     current_description: Option<String>,
     start_time_field_text: String,
+    start_time_field_editable: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -42,6 +43,7 @@ pub enum Message {
     ExistingTimeEntryGotten(Option<TimeEntry>),
     StartTimeFieldTextChanged(String),
     StartTimeFieldSubmitted(String),
+    ToggleStartTimeEditing(bool),
     StartTimeFieldUnfocused,
 }
 
@@ -53,11 +55,21 @@ impl From<Message> for applet::Message {
 
 impl TimerPage {
     pub fn view(&self) -> cosmic::Element<'_, Message> {
-        let start_time_field = text_input("No running timer.", self.start_time_field_text.clone())
-            .label("From:")
-            .on_input(Message::StartTimeFieldTextChanged)
-            .on_submit(Message::StartTimeFieldSubmitted)
-            .on_unfocus(Message::StartTimeFieldUnfocused);
+        let start_time_field_placeholder = self
+            .state
+            .running_time_entry
+            .as_ref()
+            .map(|t| t.start_time.format("%H:%M").to_string())
+            .unwrap_or("No running timer.".to_string());
+        let start_time_field = text_input::editable_input(
+            start_time_field_placeholder,
+            &self.start_time_field_text,
+            self.start_time_field_editable,
+            Message::ToggleStartTimeEditing,
+        )
+        .on_input(Message::StartTimeFieldTextChanged)
+        .on_submit(Message::StartTimeFieldSubmitted)
+        .on_unfocus(Message::StartTimeFieldUnfocused);
         let workspace_selector = dropdown::dropdown(
             self.state
                 .workspaces
@@ -133,7 +145,6 @@ impl TimerPage {
 
     pub fn update(&mut self, message: Message) -> app::Task<Message> {
         match message {
-            // Fetching
             Message::GetWorkspaces => {
                 if let Some(client) = &self.integration_client {
                     let client = Arc::clone(client);
@@ -146,9 +157,7 @@ impl TimerPage {
             }
             Message::WorkspacesGotten(workspaces) => {
                 if let Some(workspaces) = workspaces {
-                    let _ = self
-                        .state
-                        .set_workspaces(&self.state_handler, workspaces.clone());
+                    let _ = self.state.set_workspaces(&self.state_handler, workspaces);
                 }
                 Task::none()
             }
@@ -182,13 +191,10 @@ impl TimerPage {
             }
             Message::ActivitiesGotten(activities) => {
                 if let Some(activities) = activities {
-                    let _ = self
-                        .state
-                        .set_activities(&self.state_handler, activities.clone());
+                    let _ = self.state.set_activities(&self.state_handler, activities);
                 }
                 Task::none()
             }
-            // State change
             Message::WorkspaceChanged(index) => {
                 self.current_workspace = Some(index);
                 let _ = self.state.set_selected_workspace(
@@ -226,7 +232,6 @@ impl TimerPage {
                     .set_current_description(&self.state_handler, desc);
                 Task::none()
             }
-            // Other
             Message::GetExistingTimeEntry => {
                 if let Some(client) = &self.integration_client {
                     let client = Arc::clone(client);
@@ -244,13 +249,8 @@ impl TimerPage {
                 let _ = self
                     .state
                     .set_running_time_entry(&self.state_handler, time_entry.clone());
-
-                if let Some(time_entry) = time_entry {
-                    self.start_time_field_text = time_entry.start_time.format("%H:%M").to_string();
-                }
                 Task::none()
             }
-
             Message::StartTimeFieldTextChanged(text) => {
                 self.start_time_field_text = text;
                 Task::none()
@@ -288,21 +288,30 @@ impl TimerPage {
                     Message::ExistingTimeEntryGotten(time_entry)
                 })
             }
+            Message::ToggleStartTimeEditing(editiable) => {
+                if editiable {
+                    if let Some(running_time_entry) = &self.state.running_time_entry {
+                        self.start_time_field_text =
+                            running_time_entry.start_time.format("%H:%M").to_string();
+                        self.start_time_field_editable = editiable;
+                    } else {
+                        self.start_time_field_editable = false;
+                        self.start_time_field_text.clear();
+                    }
+                }
+                Task::none()
+            }
             Message::StartTimeFieldUnfocused => {
-                self.start_time_field_text = self
-                    .state
-                    .running_time_entry
-                    .clone()
-                    .map(|e| e.start_time.format("%H:%M").to_string())
-                    .unwrap_or("No running timer".to_string());
+                self.start_time_field_editable = false;
+                self.start_time_field_text.clear();
                 Task::none()
             }
         }
     }
     pub fn new(
-        integration_client: Option<Arc<dyn TrackerIntegration>>,
         state: GlobalState,
         state_handler: cosmic::cosmic_config::Config,
+        integration_client: Option<Arc<dyn TrackerIntegration>>,
     ) -> Self {
         let mut current_workspace = None;
         if let Some(selected_workspace) = &state.selected_workspace {
@@ -327,12 +336,6 @@ impl TimerPage {
         }
         let current_description = state.current_description.clone();
 
-        let start_time_field_text = state
-            .running_time_entry
-            .clone()
-            .map(|e| e.start_time.format("%H:%M").to_string())
-            .unwrap_or("No running timer".to_string());
-
         TimerPage {
             state,
             state_handler,
@@ -341,7 +344,8 @@ impl TimerPage {
             current_project,
             current_activity,
             current_description,
-            start_time_field_text,
+            start_time_field_text: String::default(),
+            start_time_field_editable: false,
         }
     }
 }

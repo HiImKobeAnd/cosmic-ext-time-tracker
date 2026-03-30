@@ -141,12 +141,10 @@ fn get_indicator_color(state: &GlobalState) -> Option<Color> {
     if let Some(running_time_entry) = &state.running_time_entry {
         match selected_tracker {
             Integration::TogglIntegration => running_time_entry
-                .clone()
                 .context
                 .get_project(&state.projects)
                 .and_then(|a| Color::parse(&a.color)),
             Integration::KimaiIntegration => running_time_entry
-                .clone()
                 .context
                 .get_activity(&state.activities)
                 .and_then(|p| Color::parse(&p.color)),
@@ -195,24 +193,21 @@ impl cosmic::Application for AppletModel {
             .text("Settings")
             .data::<Page>(Page::Settings);
 
-        let mut startup_tasks: Vec<Task<Message>> = Vec::new();
+        let startup_tasks: Vec<Task<Message>> =
+            vec![cosmic::task::message(Message::CreateIntegration)];
+
         let integration_client = None;
-
-        let timer_page = timer_page::TimerPage::new(
-            integration_client.clone(),
-            state.clone(),
-            state_handler.clone(),
-        );
-
-        let time_entries_page = time_entries_page::TimeEntriesPage::new();
-
-        startup_tasks.push(cosmic::task::message(Message::CreateIntegration));
-
         let settings_page = SettingsPage::new(
             state.clone(),
             state_handler.clone(),
             integration_client.clone(),
         );
+        let timer_page = timer_page::TimerPage::new(
+            state.clone(),
+            state_handler.clone(),
+            integration_client.clone(),
+        );
+        let time_entries_page = time_entries_page::TimeEntriesPage::new();
 
         (
             Self {
@@ -315,9 +310,9 @@ impl cosmic::Application for AppletModel {
                     let client = Arc::clone(client);
 
                     let context = TimeEntryContext {
-                        activity_id: self.state.selected_activity.clone().map(|a| a.id),
-                        workspace_id: self.state.selected_workspace.clone().map(|w| w.id),
-                        project_id: self.state.selected_project.clone().map(|p| p.id),
+                        activity_id: self.state.selected_activity.as_ref().map(|a| a.id.clone()),
+                        workspace_id: self.state.selected_workspace.as_ref().map(|w| w.id.clone()),
+                        project_id: self.state.selected_project.as_ref().map(|p| p.id.clone()),
                     };
                     let current_description = self.state.current_description.clone();
 
