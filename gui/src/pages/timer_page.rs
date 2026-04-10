@@ -5,8 +5,13 @@ use crate::{
 use chrono::NaiveTime;
 use cosmic::{
     app,
-    iced::{widget::row, Length},
-    widget::{button, dropdown, icon, text_input, Column},
+    iced::{widget::row, Alignment, Length},
+    iced_winit::graphics::text::cosmic_text::Align,
+    widget::{
+        button, dropdown, icon,
+        text::{self, caption},
+        text_input, Column,
+    },
     Element, Task,
 };
 use std::sync::Arc;
@@ -122,17 +127,46 @@ impl TimerPage {
             .on_press(Message::GetExistingTimeEntry);
 
         let mut elements = Vec::new();
-        elements.push(row![start_time_field].width(Length::Fill).into());
+        elements.push(
+            row![
+                text::body("Start").align_y(Alignment::Center),
+                start_time_field
+            ]
+            .width(Length::Fill)
+            .into(),
+        );
         if let Some(selected_tracker) = &self.state.selected_tracker {
             match selected_tracker {
                 tracker_integrations::models::Integration::TogglIntegration => {
-                    elements.push(workspace_selector.width(Length::Fill).into());
+                    // elements.push(text::body("Workspace").width(Length::Fill).into());
+                    elements.push(
+                        row![
+                            text::body("workspace"),
+                            workspace_selector.width(Length::Fill)
+                        ]
+                        .into(),
+                    );
+                    elements.push(text::body("Project").width(Length::Fill).into());
                     elements.push(project_selector.width(Length::Fill).into());
+                    elements.push(text::body("Description").width(Length::Fill).into());
                     elements.push(description_input.width(Length::Fill).into());
                 }
                 tracker_integrations::models::Integration::KimaiIntegration => {
-                    elements.push(project_selector.width(Length::Fill).into());
-                    elements.push(activity_selector.width(Length::Fill).into());
+                    elements.push(
+                        row![
+                            text::body("Project").align_y(Alignment::Center),
+                            project_selector.width(Length::Fill)
+                        ]
+                        .into(),
+                    );
+                    elements.push(
+                        row![
+                            text::body("Activity").align_y(Alignment::Center),
+                            activity_selector.width(Length::Fill)
+                        ]
+                        .into(),
+                    );
+                    elements.push(text::body("Description").width(Length::Fill).into());
                     elements.push(description_input.width(Length::Fill).into());
                 }
             }
