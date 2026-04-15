@@ -8,30 +8,23 @@ import "."
 
 Rectangle {
     id: root
-
-    property var pluginApi: null
-
-    property ShellScreen screen
-    property string widgetId: ""
-    property string section: ""
-    property int sectionWidgetIndex: -1
-    property int sectionWidgetsCount: 0
-
-    // readonly property int counter: pluginApi?.pluginSettings?.counter || 0
-    readonly property var runningEntry: pluginApi?.pluginSettings?.runningEntry
-    readonly property var runningEntrysActivity: {
-        pluginApi.pluginSettings.activities.find(p => String(p.id) == runningEntry.context.activity_id);
-    }
-    readonly property var selectedActivity: {
-        pluginApi.pluginSettings.activities.find(p => String(p.id) == pluginApi.pluginSettings.selectedActivity);
-    }
-    property var dateTimeStart: new Date("2026-04-12")
-    property string displayTime: ""
     implicitWidth: row.implicitWidth + Style.marginM * 2
     implicitHeight: Style.barHeight
-
     color: Style.capsuleColor
     radius: Style.radiusM
+
+    property var pluginApi: null
+    property ShellScreen screen
+
+    property var config: pluginApi?.pluginSettings || ({})
+    readonly property var runningEntry: config.runningEntry
+    readonly property var runningEntrysActivity: {
+        config.activities.find(p => String(p.id) == runningEntry.context.activity_id);
+    }
+    readonly property var selectedActivity: {
+        config.activities.find(p => String(p.id) == config.selectedActivity);
+    }
+    property string displayTime: ""
 
     function updateDifference() {
         let start = new Date(runningEntry.start_time);
@@ -81,17 +74,49 @@ Rectangle {
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
-        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
 
         onClicked: mouse => {
             if (pluginApi && mouse.button == Qt.LeftButton) {
+                pluginApi.openPanel(root.screen, root);
+            } else if (pluginApi && mouse.button == Qt.RightButton) {
+                PanelService.showContextMenu(contextMenu, row, screen);
+            } else if (pluginApi && mouse.button == Qt.MiddleButton) {
                 if (runningEntry) {
                     Backend.stopCurrentTimeEntry();
                 } else {
                     Backend.startTimeEntry();
                 }
-            } else if (pluginApi && mouse.button == Qt.RightButton) {
-                pluginApi.openPanel(root.screen, root);
+            }
+        }
+    }
+
+    NPopupContextMenu {
+        id: contextMenu
+
+        model: [
+            {
+                "label": "Open Settings",
+                "action": "settings",
+                "icon": "settings"
+            },
+            {
+                "label": runningEntry ? "Stop running timer" : "Start running timer",
+                "action": runningEntry ? "stop-timer" : "start-timer",
+                "icon": runningEntry ? "media-pause" : "media-play"
+            },
+        ]
+
+        onTriggered: action => {
+            contextMenu.close();
+            PanelService.closeContextMenu(screen);
+
+            if (action === "settings") {
+                BarService.openPluginSettings(screen, pluginApi.manifest);
+            } else if (action === "start-timer") {
+                Backend.startTimeEntry();
+            } else if (action === "stop-timer") {
+                Backend.stopCurrentTimeEntry();
             }
         }
     }

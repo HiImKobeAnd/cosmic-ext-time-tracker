@@ -1,7 +1,22 @@
 {
   "text": "Time Tracker",
   "counter": null,
-  "runningEntry": null,
+  "runningEntry": {
+    "id": 137,
+    "billable": false,
+    "description": "test",
+    "duration": [
+      0,
+      0
+    ],
+    "start_time": "2026-04-15T17:23:23Z",
+    "stop_time": null,
+    "context": {
+      "activity_id": 5,
+      "workspace_id": null,
+      "project_id": 2
+    }
+  },
   "activities": [
     {
       "id": 5,
