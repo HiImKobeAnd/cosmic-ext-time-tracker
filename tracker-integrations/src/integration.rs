@@ -4,7 +4,7 @@ use async_trait::async_trait;
 
 use crate::{
     error::Error,
-    models::{Project, Scope, TimeEntry, TimeEntryUpdate},
+    models::{ApiId, Project, Scope, TimeEntry, TimeEntryUpdate},
 };
 
 #[async_trait]
@@ -16,7 +16,8 @@ pub trait TrackerIntegration: Debug + Send + Sync {
     async fn stop_time_entry(&self, time_entry: &TimeEntry) -> Result<(), Error>;
     async fn start_new_time_entry(
         &self,
-        time_entry: &TimeEntry,
+        scope_id: ApiId,
+        project_id: Option<ApiId>,
         description: Option<String>,
     ) -> Result<TimeEntry, Error>;
     async fn update_time_entry(

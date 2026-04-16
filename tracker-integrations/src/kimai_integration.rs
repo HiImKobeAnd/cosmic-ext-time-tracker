@@ -220,19 +220,17 @@ impl TrackerIntegration for KimaiClient {
 
     async fn start_new_time_entry(
         &self,
-        time_entry: &TimeEntry,
+        scope_id: ApiId,
+        project_id: Option<ApiId>,
         description: Option<String>,
     ) -> Result<TimeEntry, Error> {
         tracing::info!("Starting new time entry.");
-        let Some(project_id) = &time_entry.scope_id else {
-            return Err(Error::MissingRequiredField("Workspace ID".to_string()));
-        };
-        let Some(activity_id) = &time_entry.project_id else {
+        let Some(activity_id) = project_id else {
             return Err(Error::MissingRequiredField("Project ID".to_string()));
         };
 
         let body = json!({
-            "project": project_id,
+            "project": scope_id,
             "activity": activity_id,
             "description": description,
             "begin": Utc::now().to_rfc3339(),

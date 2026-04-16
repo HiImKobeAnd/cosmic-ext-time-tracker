@@ -190,17 +190,14 @@ impl TrackerIntegration for TogglClient {
 
     async fn start_new_time_entry(
         &self,
-        time_entry: &TimeEntry,
+        scope_id: ApiId,
+        project_id: Option<ApiId>,
         description: Option<String>,
     ) -> Result<TimeEntry, Error> {
         tracing::info!("Starting new time entry.");
-        let Some(workspace_id) = &time_entry.scope_id else {
-            return Err(Error::MissingRequiredField("Workspace ID".to_string()));
-        };
-
         let body = json!({
-            "workspace_id": workspace_id,
-            "project_id": time_entry.project_id,
+            "workspace_id": scope_id,
+            "project_id": project_id,
             "description": description,
             "created_with": "cosmic-ext-time-tracker",
             "start": Utc::now().to_rfc3339(),
@@ -210,7 +207,7 @@ impl TrackerIntegration for TogglClient {
             .client
             .post(format!(
                 "https://api.track.toggl.com/api/v9/workspaces/{}/time_entries",
-                workspace_id
+                scope_id
             ))
             .basic_auth(&self.api_key, Some("api_token"))
             .header(CONTENT_TYPE, "application/json")
