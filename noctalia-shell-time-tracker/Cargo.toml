@@ -1,0 +1,16 @@
+[package]
+name = "noctalia-shell-time-tracker"
+version = "0.1.0"
+edition = "2024"
+license = "MPL-2.0"
+description = "A DBus service for time-tracker a noctalia-shell plugin"
+repository = "https://github.com/hiimkobeand/cosmic-ext-time-tracker"
+
+[dependencies]
+futures-util = "0.3.31"
+serde = "1.0.228"
+serde_json = "1.0.149"
+tokio = { workspace = true, features = ["full"] }
+tracker-integrations = { path = "../tracker-integrations" }
+chrono = { workspace = true, features = ["serde"] }
+

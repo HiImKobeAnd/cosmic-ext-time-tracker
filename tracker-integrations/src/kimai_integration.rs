@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 use async_trait::async_trait;
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Utc};
 use reqwest::{Client, Url, header::CONTENT_TYPE};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -9,9 +9,7 @@ use serde_json::json;
 use crate::{
     error::Error,
     integration::TrackerIntegration,
-    models::{
-        Activity, ApiId, Project, ProjectContext, TimeEntry, TimeEntryContext, TimeEntryUpdate,
-    },
+    models::{ApiId, Project, Scope, TimeEntry, TimeEntryUpdate},
 };
 
 #[derive(Clone, Debug)]
@@ -36,7 +34,7 @@ impl KimaiClient {
     }
 }
 
-// Entity
+// ### Entities ###
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct KimaiProject {
@@ -45,33 +43,32 @@ struct KimaiProject {
     color: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-struct KimaiTag {
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct KimaiActivity {
     id: i64,
     name: String,
+    project_id: i64,
+    color: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct KimaiActivityExpanded {
+    id: i64,
+    name: String,
+    project: KimaiProject,
     color: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct KimaiTimeEntry {
     id: i64,
-    activity: i64,
-    project: i64,
+    activity_id: i64,
+    project_id: i64,
     billable: bool,
     description: Option<String>,
     begin: DateTime<Utc>, // !TODO Research what implications that using UTC will have
     end: Option<DateTime<Utc>>, // !TODO Research what implications that using UTC will have
 }
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-struct KimaiActivity {
-    id: i64,
-    name: String,
-    project: i64,
-    color: Option<String>,
-}
-
-// Expanded
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct KimaiTimeEntryExpanded {
@@ -84,33 +81,44 @@ struct KimaiTimeEntryExpanded {
     end: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-struct KimaiActivityExpanded {
-    id: i64,
-    name: String,
-    project: KimaiProject,
-    color: Option<String>,
-}
+// #[derive(Debug, Serialize, Deserialize)]
+// struct KimaiTag {
+//     id: i64,
+//     name: String,
+//     color: Option<String>,
+// }
 
-impl From<KimaiProject> for Project {
+impl From<KimaiProject> for Scope {
     fn from(raw: KimaiProject) -> Self {
         Self {
             id: ApiId::Int(raw.id),
             name: raw.name,
-            modified_at: DateTime::default(), // TODO
             color: raw.color.unwrap_or("ffffff".to_string()),
-            context: ProjectContext::Kimai,
         }
     }
 }
 
-impl From<KimaiActivity> for Activity {
+impl From<KimaiActivity> for Project {
     fn from(raw: KimaiActivity) -> Self {
         Self {
             id: ApiId::Int(raw.id),
+            scope_id: ApiId::Int(raw.project_id),
             name: raw.name,
-            project_id: ApiId::Int(raw.project),
             color: raw.color.unwrap_or("ffffff".to_string()),
+        }
+    }
+}
+
+impl From<KimaiTimeEntry> for TimeEntry {
+    fn from(raw: KimaiTimeEntry) -> Self {
+        Self {
+            id: ApiId::Int(raw.id),
+            scope_id: Some(ApiId::Int(raw.project_id)),
+            project_id: Some(ApiId::Int(raw.activity_id)),
+            billable: raw.billable,
+            description: raw.description,
+            start_time: raw.begin,
+            stop_time: raw.end,
         }
     }
 }
@@ -125,24 +133,6 @@ impl From<KimaiActivity> for Activity {
 //         }
 //     }
 // }
-
-impl From<KimaiTimeEntry> for TimeEntry {
-    fn from(raw: KimaiTimeEntry) -> Self {
-        Self {
-            id: ApiId::Int(raw.id),
-            billable: raw.billable,
-            description: raw.description,
-            duration: Duration::zero(), // TODO
-            start_time: raw.begin,
-            stop_time: raw.end,
-            context: TimeEntryContext {
-                activity_id: Some(ApiId::Int(raw.activity)),
-                project_id: Some(ApiId::Int(raw.project)),
-                workspace_id: None,
-            },
-        }
-    }
-}
 
 #[async_trait]
 impl TrackerIntegration for KimaiClient {
@@ -172,8 +162,8 @@ impl TrackerIntegration for KimaiClient {
             Some(active_entry) => {
                 let entry = KimaiTimeEntry {
                     id: active_entry.id,
-                    activity: active_entry.activity.id,
-                    project: active_entry.project.id,
+                    project_id: active_entry.project.id,
+                    activity_id: active_entry.activity.id,
                     billable: active_entry.billable,
                     description: active_entry.description.clone(),
                     begin: active_entry.begin,
@@ -185,28 +175,7 @@ impl TrackerIntegration for KimaiClient {
         }
     }
 
-    async fn get_project_activities(&self, project_id: ApiId) -> Result<Vec<Activity>, Error> {
-        tracing::info!("Getting project activities.");
-        let resp: Vec<KimaiActivity> = self
-            .client
-            .get(
-                self.base_url
-                    .join(&format!("api/activities?project={}", project_id))?,
-            )
-            .bearer_auth(&self.api_key)
-            .header(CONTENT_TYPE, "application/json")
-            .send()
-            .await?
-            .json()
-            .await?;
-        Ok(resp.into_iter().map(Into::into).collect())
-    }
-
-    async fn get_all_workspaces(&self) -> Result<Vec<crate::models::Workspace>, Error> {
-        todo!()
-    }
-
-    async fn get_all_projects(&self) -> Result<Vec<Project>, Error> {
+    async fn get_all_scopes(&self) -> Result<Vec<Scope>, Error> {
         tracing::info!("Getting all projects.");
         let resp: Vec<KimaiProject> = self
             .client
@@ -220,7 +189,7 @@ impl TrackerIntegration for KimaiClient {
         Ok(resp.into_iter().map(Into::into).collect())
     }
 
-    async fn get_all_activities(&self) -> Result<Vec<Activity>, Error> {
+    async fn get_all_projects(&self) -> Result<Vec<Project>, Error> {
         tracing::info!("Getting all activities.");
         let resp: Vec<KimaiActivity> = self
             .client
@@ -234,17 +203,13 @@ impl TrackerIntegration for KimaiClient {
         Ok(resp.into_iter().map(Into::into).collect())
     }
 
-    async fn stop_time_entry(
-        &self,
-        _time_entry_context: TimeEntryContext,
-        time_entry_id: ApiId,
-    ) -> Result<(), Error> {
+    async fn stop_time_entry(&self, time_entry: &TimeEntry) -> Result<(), Error> {
         tracing::info!("Stopping time entry.");
         let _resp = self
             .client
             .patch(
                 self.base_url
-                    .join(&format!("/api/timesheets/{}/stop", time_entry_id))?,
+                    .join(&format!("/api/timesheets/{}/stop", time_entry.id))?,
             )
             .bearer_auth(&self.api_key)
             .header(CONTENT_TYPE, "application/json")
@@ -255,20 +220,20 @@ impl TrackerIntegration for KimaiClient {
 
     async fn start_new_time_entry(
         &self,
-        time_entry_context: TimeEntryContext,
+        time_entry: &TimeEntry,
         description: Option<String>,
     ) -> Result<TimeEntry, Error> {
         tracing::info!("Starting new time entry.");
-        let Some(activity_id) = time_entry_context.activity_id else {
-            return Err(Error::MissingRequiredField("Activity ID".to_string()));
+        let Some(project_id) = &time_entry.scope_id else {
+            return Err(Error::MissingRequiredField("Workspace ID".to_string()));
         };
-        let Some(project_id) = time_entry_context.project_id else {
+        let Some(activity_id) = &time_entry.project_id else {
             return Err(Error::MissingRequiredField("Project ID".to_string()));
         };
 
         let body = json!({
-            "activity": activity_id,
             "project": project_id,
+            "activity": activity_id,
             "description": description,
             "begin": Utc::now().to_rfc3339(),
         });
@@ -292,7 +257,6 @@ impl TrackerIntegration for KimaiClient {
         time_entry_update: &TimeEntryUpdate,
     ) -> Result<TimeEntry, Error> {
         tracing::info!("Updaing time entry {}.", time_entry.id);
-
         let body = json!({
             "begin": time_entry_update.start_time ,
             "end": time_entry_update.stop_time,

@@ -3,7 +3,7 @@
 use core::fmt;
 use std::sync::Arc;
 
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -29,6 +29,9 @@ impl std::fmt::Display for Integration {
 }
 
 impl Integration {
+    pub fn all() -> &'static [Self] {
+        &[Self::KimaiIntegration, Self::TogglIntegration]
+    }
     pub async fn create_client(&self) -> Option<Arc<dyn TrackerIntegration>> {
         match self {
             Integration::TogglIntegration => {
@@ -72,50 +75,45 @@ impl fmt::Display for ApiId {
     }
 }
 
+// Main domain
+
+// Kimai project & Toggl workspace
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Default)]
+pub struct Scope {
+    pub id: ApiId,
+    pub name: String,
+    pub color: String,
+}
+
+// Kimai activity & Toggl Project
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Default)]
 pub struct Project {
     pub id: ApiId,
+    pub scope_id: ApiId,
     pub name: String,
-    pub modified_at: DateTime<Utc>,
     pub color: String,
-    pub context: ProjectContext,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Default)]
-pub struct Workspace {
-    pub id: ApiId,
-    pub name: String,
-    pub modified_at: DateTime<Utc>,
-    pub active_project_count: i64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Default)]
-pub struct Activity {
-    pub id: ApiId,
-    pub name: String,
-    pub project_id: ApiId,
-    pub color: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Default)]
-pub struct Tag {
-    pub id: ApiId,
-    pub name: String,
-    pub modified_at: DateTime<Utc>,
-    pub workspace_id: ApiId,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Default)]
 pub struct TimeEntry {
     pub id: ApiId,
+    pub scope_id: Option<ApiId>,
+    pub project_id: Option<ApiId>,
     pub billable: bool,
     pub description: Option<String>,
-    pub duration: Duration,
     pub start_time: DateTime<Utc>, // !TODO Research what implications that using UTC will have
     pub stop_time: Option<DateTime<Utc>>, // !TODO Research what implications that using UTC will have
-    // pub tags: Vec<String>,
-    pub context: TimeEntryContext,
 }
+
+// #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Default)]
+// pub struct Tag {
+//     pub id: ApiId,
+//     pub name: String,
+//     pub modified_at: DateTime<Utc>,
+//     pub workspace_id: ApiId,
+// }
+
+// Extra DTOs
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Default)]
 pub struct TimeEntryUpdate {
@@ -123,47 +121,4 @@ pub struct TimeEntryUpdate {
     pub description: Option<String>,
     pub start_time: DateTime<Utc>, // !TODO Research what implications that using UTC will have
     pub stop_time: Option<DateTime<Utc>>, // !TODO Research what implications that using UTC will have
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
-pub enum ProjectContext {
-    Kimai,
-    Toggl { workspace_id: ApiId },
-}
-
-impl Default for ProjectContext {
-    fn default() -> Self {
-        Self::Kimai
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Default)]
-pub struct TimeEntryContext {
-    pub activity_id: Option<ApiId>,
-    pub workspace_id: Option<ApiId>,
-    pub project_id: Option<ApiId>,
-}
-
-impl TimeEntryContext {
-    pub fn get_activity<'a>(&self, activities: &'a [Activity]) -> Option<&'a Activity> {
-        if let Some(activity_id) = &self.activity_id {
-            activities.iter().find(|a| a.id == *activity_id)
-        } else {
-            None
-        }
-    }
-    pub fn get_project<'a>(&self, projects: &'a [Project]) -> Option<&'a Project> {
-        if let Some(project_id) = &self.project_id {
-            projects.iter().find(|a| a.id == *project_id)
-        } else {
-            None
-        }
-    }
-    pub fn get_workspace<'a>(&self, workspaces: &'a [Workspace]) -> Option<&'a Workspace> {
-        if let Some(workspace_id) = &self.workspace_id {
-            workspaces.iter().find(|a| a.id == *workspace_id)
-        } else {
-            None
-        }
-    }
 }

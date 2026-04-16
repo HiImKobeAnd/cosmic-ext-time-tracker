@@ -4,25 +4,19 @@ use async_trait::async_trait;
 
 use crate::{
     error::Error,
-    models::{Activity, ApiId, Project, TimeEntry, TimeEntryContext, TimeEntryUpdate, Workspace},
+    models::{Project, Scope, TimeEntry, TimeEntryUpdate},
 };
 
 #[async_trait]
 pub trait TrackerIntegration: Debug + Send + Sync {
     async fn validate_authentication(&self) -> Result<bool, Error>;
     async fn get_current_time_entry(&self) -> Result<Option<TimeEntry>, Error>;
-    async fn get_project_activities(&self, project_id: ApiId) -> Result<Vec<Activity>, Error>;
-    async fn get_all_workspaces(&self) -> Result<Vec<Workspace>, Error>;
+    async fn get_all_scopes(&self) -> Result<Vec<Scope>, Error>;
     async fn get_all_projects(&self) -> Result<Vec<Project>, Error>;
-    async fn get_all_activities(&self) -> Result<Vec<Activity>, Error>;
-    async fn stop_time_entry(
-        &self,
-        time_entry_context: TimeEntryContext,
-        time_entry_id: ApiId,
-    ) -> Result<(), Error>;
+    async fn stop_time_entry(&self, time_entry: &TimeEntry) -> Result<(), Error>;
     async fn start_new_time_entry(
         &self,
-        time_entry_context: TimeEntryContext,
+        time_entry: &TimeEntry,
         description: Option<String>,
     ) -> Result<TimeEntry, Error>;
     async fn update_time_entry(
