@@ -11,9 +11,10 @@ QtObject {
 
     property var pluginApi: null
 
-    readonly property var runningEntry: pluginApi?.pluginSettings?.runningEntry
-    readonly property var activities: pluginApi?.pluginSettings?.activities
-    readonly property var projects: pluginApi?.pluginSettings?.projects
+    property var config: pluginApi?.pluginSettings || ({})
+    readonly property var runningEntry: config.runningEntry
+    readonly property var activities: config.activities
+    readonly property var projects: config.projects
 
     property Process tracker: Process {
         command: [Quickshell.env("HOME") + "/.config/noctalia/plugins/time-tracker/noctalia-shell-time-tracker"] // TODO change to something better
@@ -30,25 +31,27 @@ QtObject {
                     switch (obj.message) {
                     case "get_current_time_entry":
                         console.log(obj.content);
-                        pluginApi.pluginSettings.runningEntry = obj.content;
+                        config.runningEntry = obj.content;
                         pluginApi.saveSettings();
                         break;
                     case "stop_current_time_entry":
-                        pluginApi.pluginSettings.runningEntry = null;
+                        config.runningEntry = null;
                         pluginApi.saveSettings();
                         break;
                     case "start_time_entry":
-                        pluginApi.pluginSettings.runningEntry = obj.content;
+                        config.runningEntry = obj.content;
+                        pluginApi.saveSettings();
+                        break;
+                    case "get_all_integrations":
+                        config.integrations = obj.content;
                         pluginApi.saveSettings();
                         break;
                     case "get_all_activities":
-                        console.log(obj.content);
-                        pluginApi.pluginSettings.activities = obj.content;
+                        config.activities = obj.content;
                         pluginApi.saveSettings();
                         break;
                     case "get_all_projects":
-                        console.log(obj.content);
-                        pluginApi.pluginSettings.projects = obj.content;
+                        config.projects = obj.content;
                         pluginApi.saveSettings();
                         break;
                     default:
@@ -83,8 +86,8 @@ QtObject {
 
     function startTimeEntry() {
         let entry = root.runningEntry;
-        let selectedProject = pluginApi.pluginSettings.selectedProject;
-        let selectedActivity = pluginApi.pluginSettings.selectedActivity;
+        let selectedProject = config.selectedProject;
+        let selectedActivity = config.selectedActivity;
 
         if (selectedProject) {
             ToastService.showNotice("Please select a project");
@@ -103,6 +106,15 @@ QtObject {
                 },
                 "description": "test"
             }
+        };
+        let jsonString = JSON.stringify(request);
+        tracker.write(jsonString + "\n");
+    }
+
+    function getAllIntegrations() {
+        let request = {
+            "message": "get_all_integrations",
+            "content": null
         };
         let jsonString = JSON.stringify(request);
         tracker.write(jsonString + "\n");

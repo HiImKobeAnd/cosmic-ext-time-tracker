@@ -10,10 +10,25 @@ ColumnLayout {
     property var pluginApi: null
     property var config: pluginApi?.pluginSettings || ({})
 
-    NText {
-        text: "Hello"
-        color: Color.mOnSurface
-        pointSize: Style.fontSizeS
+    readonly property var integrations: {
+        let list = config.integrations || [];
+        return list.map(i => ({
+                    "key": String(i),
+                    "name": String(i)
+                }));
+    }
+
+    NComboBox {
+        label: "Integration"
+        description: "Select integration"
+        model: integrations
+        currentKey: config.selectedIntegration
+        onSelected: key => {
+            Qt.callLater(() => {
+                config.selectedIntegration = key;
+                pluginApi.saveSettings();
+            });
+        }
     }
 
     function saveSettings() {

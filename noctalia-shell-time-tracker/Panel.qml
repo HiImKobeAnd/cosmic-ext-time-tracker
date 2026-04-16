@@ -7,6 +7,7 @@ Item {
     id: root
 
     property var pluginApi: null
+    property var config: pluginApi?.pluginSettings || ({})
 
     readonly property var geometryPlaceholder: panelContainer
     readonly property bool allowAttach: true
@@ -15,16 +16,16 @@ Item {
     property real contentPreferredHeight: mainLayout.implicitHeight + (Style.marginL * 2)
 
     readonly property var projects: {
-        let list = pluginApi?.pluginSettings?.projects || [];
+        let list = config.projects || [];
         return list.map(p => ({
                     "key": String(p.id),
                     "name": p.name
                 }));
     }
     readonly property var activities: {
-        let list = pluginApi?.pluginSettings?.activities || [];
+        let list = config.activities || [];
         let filteredList = list.filter(a => {
-            return String(a.project_id) === pluginApi.pluginSettings.selectedProject;
+            return String(a.project_id) === config.selectedProject;
         });
         return filteredList.map(p => ({
                     "key": String(p.id),
@@ -48,10 +49,10 @@ Item {
                 label: "Projects"
                 description: "Select project"
                 model: projects
-                currentKey: pluginApi.pluginSettings.selectedProject
+                currentKey: config.selectedProject
                 onSelected: key => {
                     Qt.callLater(() => {
-                        pluginApi.pluginSettings.selectedProject = key;
+                        config.selectedProject = key;
                         pluginApi.saveSettings();
                     });
                 }
@@ -60,10 +61,10 @@ Item {
                 label: "Activiy"
                 description: "Select activity"
                 model: activities
-                currentKey: pluginApi.pluginSettings.selectedActivity
+                currentKey: config.selectedActivity
                 onSelected: key => {
                     Qt.callLater(() => {
-                        pluginApi.pluginSettings.selectedActivity = key;
+                        config.selectedActivity = key;
                         pluginApi.saveSettings();
                     });
                 }

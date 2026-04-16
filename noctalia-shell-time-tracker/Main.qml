@@ -25,6 +25,9 @@ Item {
         function startTimeEntry() {
             Backend.startTimeEntry();
         }
+        function getAllIntegrations() {
+            Backend.getAllIntegrations();
+        }
         function getAllActivities() {
             Backend.getAllActivities();
         }

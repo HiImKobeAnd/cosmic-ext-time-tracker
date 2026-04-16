@@ -27,6 +27,8 @@ enum BackendMessage {
     StopEntry(TimeEntry),
     #[serde(rename = "start_time_entry")]
     StartEntry(StartEntryData),
+    #[serde(rename = "get_all_integrations")]
+    GetAllIntegrations(()),
     #[serde(rename = "get_all_activities")]
     GetAllActivities(()),
     #[serde(rename = "get_all_projects")]
@@ -40,6 +42,7 @@ impl BackendMessage {
             BackendMessage::GetCurrentEntry(_) => "get_current_time_entry",
             BackendMessage::StopEntry(_) => "stop_current_time_entry",
             BackendMessage::StartEntry(_) => "start_time_entry",
+            BackendMessage::GetAllIntegrations(_) => "get_all_integrations",
             BackendMessage::GetAllActivities(_) => "get_all_activities",
             BackendMessage::GetAllProjets(_) => "get_all_projects",
         }
@@ -75,17 +78,26 @@ async fn parse_message(client: &KimaiClient, message: BackendMessage) {
                 send_to_stdout(message.as_name(), current_time_entry);
             };
         }
-        BackendMessage::StopEntry(entry) => {
-            client.stop_time_entry(entry.context, entry.id).await;
-            send_to_stdout("stop_current_time_entry", "Success");
+        BackendMessage::StopEntry(ref entry) => {
+            client
+                .stop_time_entry(entry.context.clone(), entry.id.clone())
+                .await;
+            send_to_stdout(message.as_name(), "Success");
         }
-        BackendMessage::StartEntry(start_entry_data) => {
+        BackendMessage::StartEntry(ref start_entry_data) => {
             let result = client
-                .start_new_time_entry(start_entry_data.context, start_entry_data.description)
+                .start_new_time_entry(
+                    start_entry_data.context.clone(),
+                    start_entry_data.description.clone(),
+                )
                 .await;
             if let Ok(result) = result {
-                send_to_stdout("start_time_entry", result);
+                send_to_stdout(message.as_name(), result);
             }
+        }
+        BackendMessage::GetAllIntegrations(_) => {
+            let result = Integration::all();
+            send_to_stdout(message.as_name(), result);
         }
         BackendMessage::GetAllActivities(_) => {
             let result = client.get_all_activities().await;

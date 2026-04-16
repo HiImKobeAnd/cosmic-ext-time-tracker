@@ -29,6 +29,9 @@ impl std::fmt::Display for Integration {
 }
 
 impl Integration {
+    pub fn all() -> &'static [Self] {
+        &[Self::KimaiIntegration, Self::TogglIntegration]
+    }
     pub async fn create_client(&self) -> Option<Arc<dyn TrackerIntegration>> {
         match self {
             Integration::TogglIntegration => {
