@@ -9,7 +9,7 @@ use serde_json::json;
 use crate::{
     error::Error,
     integration::TrackerIntegration,
-    models::{ApiId, Project, Scope, TimeEntry, TimeEntryUpdate},
+    models::{Project, Scope, TimeEntry, TimeEntryUpdate},
 };
 
 #[derive(Clone, Debug)]
@@ -91,7 +91,7 @@ struct KimaiTimeEntryExpanded {
 impl From<KimaiProject> for Scope {
     fn from(raw: KimaiProject) -> Self {
         Self {
-            id: ApiId::Int(raw.id),
+            id: raw.id.to_string(),
             name: raw.name,
             color: raw.color.unwrap_or("ffffff".to_string()),
         }
@@ -101,8 +101,8 @@ impl From<KimaiProject> for Scope {
 impl From<KimaiActivity> for Project {
     fn from(raw: KimaiActivity) -> Self {
         Self {
-            id: ApiId::Int(raw.id),
-            scope_id: ApiId::Int(raw.project_id),
+            id: raw.id.to_string(),
+            scope_id: raw.project_id.to_string(),
             name: raw.name,
             color: raw.color.unwrap_or("ffffff".to_string()),
         }
@@ -112,9 +112,9 @@ impl From<KimaiActivity> for Project {
 impl From<KimaiTimeEntry> for TimeEntry {
     fn from(raw: KimaiTimeEntry) -> Self {
         Self {
-            id: ApiId::Int(raw.id),
-            scope_id: Some(ApiId::Int(raw.project_id)),
-            project_id: Some(ApiId::Int(raw.activity_id)),
+            id: raw.id.to_string(),
+            scope_id: Some(raw.project_id.to_string()),
+            project_id: Some(raw.activity_id.to_string()),
             billable: raw.billable,
             description: raw.description,
             start_time: raw.begin,
@@ -220,8 +220,8 @@ impl TrackerIntegration for KimaiClient {
 
     async fn start_new_time_entry(
         &self,
-        scope_id: ApiId,
-        project_id: Option<ApiId>,
+        scope_id: String,
+        project_id: Option<String>,
         description: Option<String>,
     ) -> Result<TimeEntry, Error> {
         tracing::info!("Starting new time entry.");

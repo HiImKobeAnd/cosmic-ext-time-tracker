@@ -9,7 +9,7 @@ use serde_json::json;
 use crate::{
     error::Error,
     integration::TrackerIntegration,
-    models::{ApiId, Project, Scope, TimeEntry, TimeEntryUpdate},
+    models::{Project, Scope, TimeEntry, TimeEntryUpdate},
 };
 
 #[derive(Clone, Debug)]
@@ -68,7 +68,7 @@ pub struct TogglTimeEntry {
 impl From<TogglWorkspace> for Scope {
     fn from(raw: TogglWorkspace) -> Self {
         Self {
-            id: ApiId::Int(raw.id),
+            id: raw.id.to_string(),
             name: raw.name,
             color: "ffffff".to_string(), // Toggl workspaces do not have colors
         }
@@ -78,8 +78,8 @@ impl From<TogglWorkspace> for Scope {
 impl From<TogglProject> for Project {
     fn from(raw: TogglProject) -> Self {
         Self {
-            id: ApiId::Int(raw.id),
-            scope_id: ApiId::Int(raw.workspace_id),
+            id: raw.id.to_string(),
+            scope_id: raw.workspace_id.to_string(),
             name: raw.name,
             color: raw.color,
         }
@@ -89,9 +89,9 @@ impl From<TogglProject> for Project {
 impl From<TogglTimeEntry> for TimeEntry {
     fn from(raw: TogglTimeEntry) -> Self {
         Self {
-            id: ApiId::Int(raw.id),
-            scope_id: Some(ApiId::Int(raw.workspace_id)),
-            project_id: raw.project_id.map(ApiId::Int),
+            id: raw.id.to_string(),
+            scope_id: Some(raw.workspace_id.to_string()),
+            project_id: raw.project_id.map(|i| i.to_string()),
             billable: raw.billable,
             description: raw.description,
             start_time: raw.start,
@@ -190,8 +190,8 @@ impl TrackerIntegration for TogglClient {
 
     async fn start_new_time_entry(
         &self,
-        scope_id: ApiId,
-        project_id: Option<ApiId>,
+        scope_id: String,
+        project_id: Option<String>,
         description: Option<String>,
     ) -> Result<TimeEntry, Error> {
         tracing::info!("Starting new time entry.");
