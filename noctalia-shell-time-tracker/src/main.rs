@@ -1,18 +1,17 @@
 use std::io::{self, BufRead};
 
-use chrono::{DateTime, Duration};
 use serde::Serialize;
 use serde_json::{Error, json};
 use tracker_integrations::{
     authentication::{get_api_key, get_integration_url},
     integration::TrackerIntegration,
-    kimai_integration::{self, KimaiClient},
-    models::{ApiId, Integration, TimeEntry, TimeEntryContext},
+    kimai_integration::KimaiClient,
+    models::{Integration, TimeEntry},
 };
 
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 struct StartEntryData {
-    context: TimeEntryContext,
+    time_entry: TimeEntry,
     description: Option<String>,
 }
 
@@ -29,10 +28,10 @@ enum BackendMessage {
     StartEntry(StartEntryData),
     #[serde(rename = "get_all_integrations")]
     GetAllIntegrations(()),
-    #[serde(rename = "get_all_activities")]
-    GetAllActivities(()),
+    #[serde(rename = "get_all_scopes")]
+    GetAllScopes(()),
     #[serde(rename = "get_all_projects")]
-    GetAllProjets(()),
+    GetAllProjects(()),
 }
 
 impl BackendMessage {
@@ -43,8 +42,8 @@ impl BackendMessage {
             BackendMessage::StopEntry(_) => "stop_current_time_entry",
             BackendMessage::StartEntry(_) => "start_time_entry",
             BackendMessage::GetAllIntegrations(_) => "get_all_integrations",
-            BackendMessage::GetAllActivities(_) => "get_all_activities",
-            BackendMessage::GetAllProjets(_) => "get_all_projects",
+            BackendMessage::GetAllScopes(_) => "get_all_scopes",
+            BackendMessage::GetAllProjects(_) => "get_all_projects",
         }
     }
 }
@@ -79,15 +78,13 @@ async fn parse_message(client: &KimaiClient, message: BackendMessage) {
             };
         }
         BackendMessage::StopEntry(ref entry) => {
-            client
-                .stop_time_entry(entry.context.clone(), entry.id.clone())
-                .await;
+            let _ = client.stop_time_entry(&entry).await;
             send_to_stdout(message.as_name(), "Success");
         }
         BackendMessage::StartEntry(ref start_entry_data) => {
             let result = client
                 .start_new_time_entry(
-                    start_entry_data.context.clone(),
+                    &start_entry_data.time_entry,
                     start_entry_data.description.clone(),
                 )
                 .await;
@@ -99,19 +96,19 @@ async fn parse_message(client: &KimaiClient, message: BackendMessage) {
             let result = Integration::all();
             send_to_stdout(message.as_name(), result);
         }
-        BackendMessage::GetAllActivities(_) => {
-            let result = client.get_all_activities().await;
+
+        BackendMessage::GetAllScopes(_) => {
+            let result = client.get_all_scopes().await;
             if let Ok(result) = result {
                 send_to_stdout(message.as_name(), result);
             }
         }
-        BackendMessage::GetAllProjets(_) => {
+        BackendMessage::GetAllProjects(_) => {
             let result = client.get_all_projects().await;
             if let Ok(result) = result {
                 send_to_stdout(message.as_name(), result);
             }
         }
-        _ => send_to_stdout("temp", "Not a valid message"),
     }
 }
 
