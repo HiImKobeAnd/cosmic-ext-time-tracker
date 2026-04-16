@@ -59,14 +59,12 @@ async fn main() {
         .await
         .expect("Could not get key");
 
-    for line in stdin.lock().lines() {
-        if let Ok(message) = line {
-            println!("{:#?}", &message);
-            let message: Result<BackendMessage, Error> = serde_json::from_str(&message);
-            match message {
-                Ok(message) => parse_message(&client, message).await,
-                Err(e) => println!("Failed: {:#?}", e),
-            }
+    for message in stdin.lock().lines().flatten() {
+        println!("{:#?}", &message);
+        let message: Result<BackendMessage, Error> = serde_json::from_str(&message);
+        match message {
+            Ok(message) => parse_message(&client, message).await,
+            Err(e) => println!("Failed: {:#?}", e),
         }
     }
 }
@@ -79,7 +77,7 @@ async fn parse_message(client: &KimaiClient, message: BackendMessage) {
             };
         }
         BackendMessage::StopEntry(ref entry) => {
-            let _ = client.stop_time_entry(&entry).await;
+            let _ = client.stop_time_entry(entry).await;
             send_to_stdout(message.as_name(), "Success");
         }
         BackendMessage::StartEntry(ref start_entry_data) => {

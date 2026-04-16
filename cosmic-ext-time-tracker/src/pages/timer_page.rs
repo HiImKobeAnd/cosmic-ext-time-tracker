@@ -11,7 +11,7 @@ use cosmic::{
         text::{self},
         text_input, Column,
     },
-    Element, Task,
+    Task,
 };
 use std::sync::Arc;
 use tracker_integrations::{
@@ -104,25 +104,22 @@ impl TimerPage {
         let refetch_existing_timer = button::icon(icon::from_name("object-rotate-left-symbolic"))
             .on_press(Message::GetExistingTimeEntry);
 
-        let mut elements = Vec::new();
-        elements.push(
+        Column::with_children(vec![
             row![
                 text::body("Start").align_y(Alignment::Center),
                 start_time_field
             ]
             .width(Length::Fill)
             .into(),
-        );
-        elements.push(text::body("Scope").width(Length::Fill).into());
-        elements.push(scope_selector.width(Length::Fill).into());
-        elements.push(text::body("Project").width(Length::Fill).into());
-        elements.push(project_selector.width(Length::Fill).into());
-        elements.push(text::body("Description").width(Length::Fill).into());
-        elements.push(description_input.width(Length::Fill).into());
-        elements.push(row![refetch_existing_timer].width(Length::Fill).into());
-
-        Element::from(Column::new().extend(elements))
-        // .explain(cosmic::iced::Color::WHITE)
+            text::body("Scope").width(Length::Fill).into(),
+            scope_selector.width(Length::Fill).into(),
+            text::body("Project").width(Length::Fill).into(),
+            project_selector.width(Length::Fill).into(),
+            text::body("Description").width(Length::Fill).into(),
+            description_input.width(Length::Fill).into(),
+            row![refetch_existing_timer].width(Length::Fill).into(),
+        ])
+        .into()
     }
 
     pub fn update(&mut self, message: Message) -> app::Task<Message> {
@@ -287,7 +284,7 @@ impl TimerPage {
             state,
             state_handler,
             integration_client,
-            current_scope: current_scope,
+            current_scope,
             current_project,
             current_description,
             start_time_field_text: String::default(),

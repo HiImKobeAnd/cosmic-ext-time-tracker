@@ -298,7 +298,7 @@ impl cosmic::Application for AppletModel {
                 let current_description = self.state.current_description.clone();
 
                 let client = Arc::clone(client);
-                return cosmic::task::future(async move {
+                cosmic::task::future(async move {
                     let time_entry = client
                         .start_new_time_entry(scope, project, current_description)
                         .await;
@@ -306,7 +306,7 @@ impl cosmic::Application for AppletModel {
                         return Message::TimerStarted(time_entry);
                     }
                     Message::Tick // TODO Tick used as an escape.
-                });
+                })
             }
             Message::TimerStarted(time_entry) => {
                 let _ = self
@@ -389,14 +389,12 @@ impl cosmic::Application for AppletModel {
                         .data::<Page>(Page::Settings);
                 }
 
-                let mut startup_tasks: Vec<Task<Message>> = Vec::new();
-                startup_tasks.push(cosmic::task::message(
-                    timer_page::Message::GetExistingTimeEntry,
-                ));
-                startup_tasks.push(cosmic::task::message(timer_page::Message::GetScopes));
-                startup_tasks.push(cosmic::task::message(timer_page::Message::GetProjects));
-
-                return cosmic::task::batch(startup_tasks);
+                let startup_tasks: Vec<Task<Message>> = vec![
+                    cosmic::task::message(timer_page::Message::GetExistingTimeEntry),
+                    cosmic::task::message(timer_page::Message::GetScopes),
+                    cosmic::task::message(timer_page::Message::GetProjects),
+                ];
+                cosmic::task::batch(startup_tasks)
             }
         }
     }
