@@ -15,21 +15,21 @@ Item {
     property real contentPreferredWidth: 420 * Style.uiScaleRatio
     property real contentPreferredHeight: mainLayout.implicitHeight + (Style.marginL * 2)
 
-    readonly property var projects: {
-        let list = config.projects || [];
-        return list.map(p => ({
-                    "key": String(p.id),
-                    "name": p.name
+    readonly property var scopes: {
+        let list = config.scopes || [];
+        return list.map(s => ({
+                    "key": String(s.id),
+                    "name": s.name
                 }));
     }
-    readonly property var activities: {
-        let list = config.activities || [];
-        let filteredList = list.filter(a => {
-            return String(a.project_id) === config.selectedProject;
+    readonly property var projects: {
+        let list = config.projects || [];
+        let filteredList = list.filter(s => {
+            return String(s.scope_id) === config.selectedScope;
         });
-        return filteredList.map(p => ({
-                    "key": String(p.id),
-                    "name": p.name
+        return filteredList.map(s => ({
+                    "key": String(s.id),
+                    "name": s.name
                 }));
     }
 
@@ -46,6 +46,19 @@ Item {
             anchors.margins: Style.marginL
 
             NComboBox {
+                label: "Scope"
+                description: "Select scope"
+                model: scopes
+                currentKey: config.selectedScope
+                onSelected: key => {
+                    Qt.callLater(() => {
+                        config.selectedScope = key;
+                        pluginApi.saveSettings();
+                    });
+                }
+            }
+
+            NComboBox {
                 label: "Projects"
                 description: "Select project"
                 model: projects
@@ -53,18 +66,6 @@ Item {
                 onSelected: key => {
                     Qt.callLater(() => {
                         config.selectedProject = key;
-                        pluginApi.saveSettings();
-                    });
-                }
-            }
-            NComboBox {
-                label: "Activiy"
-                description: "Select activity"
-                model: activities
-                currentKey: config.selectedActivity
-                onSelected: key => {
-                    Qt.callLater(() => {
-                        config.selectedActivity = key;
                         pluginApi.saveSettings();
                     });
                 }

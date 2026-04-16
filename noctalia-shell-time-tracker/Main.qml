@@ -28,8 +28,8 @@ Item {
         function getAllIntegrations() {
             Backend.getAllIntegrations();
         }
-        function getAllActivities() {
-            Backend.getAllActivities();
+        function getAllScopes() {
+            Backend.getAllScopes();
         }
         function getAllProjects() {
             Backend.getAllProjects();

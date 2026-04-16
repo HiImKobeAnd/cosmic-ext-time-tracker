@@ -47,7 +47,7 @@ struct KimaiProject {
 struct KimaiActivity {
     id: i64,
     name: String,
-    project_id: i64,
+    project: i64,
     color: Option<String>,
 }
 
@@ -62,8 +62,8 @@ struct KimaiActivityExpanded {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct KimaiTimeEntry {
     id: i64,
-    activity_id: i64,
-    project_id: i64,
+    activity: i64,
+    project: i64,
     billable: bool,
     description: Option<String>,
     begin: DateTime<Utc>, // !TODO Research what implications that using UTC will have
@@ -102,7 +102,7 @@ impl From<KimaiActivity> for Project {
     fn from(raw: KimaiActivity) -> Self {
         Self {
             id: raw.id.to_string(),
-            scope_id: raw.project_id.to_string(),
+            scope_id: raw.project.to_string(),
             name: raw.name,
             color: raw.color.unwrap_or("ffffff".to_string()),
         }
@@ -113,8 +113,8 @@ impl From<KimaiTimeEntry> for TimeEntry {
     fn from(raw: KimaiTimeEntry) -> Self {
         Self {
             id: raw.id.to_string(),
-            scope_id: Some(raw.project_id.to_string()),
-            project_id: Some(raw.activity_id.to_string()),
+            scope_id: Some(raw.project.to_string()),
+            project_id: Some(raw.activity.to_string()),
             billable: raw.billable,
             description: raw.description,
             start_time: raw.begin,
@@ -162,8 +162,8 @@ impl TrackerIntegration for KimaiClient {
             Some(active_entry) => {
                 let entry = KimaiTimeEntry {
                     id: active_entry.id,
-                    project_id: active_entry.project.id,
-                    activity_id: active_entry.activity.id,
+                    project: active_entry.project.id,
+                    activity: active_entry.activity.id,
                     billable: active_entry.billable,
                     description: active_entry.description.clone(),
                     begin: active_entry.begin,

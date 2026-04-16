@@ -13,7 +13,7 @@ QtObject {
 
     property var config: pluginApi?.pluginSettings || ({})
     readonly property var runningEntry: config.runningEntry
-    readonly property var activities: config.activities
+    readonly property var scopes: config.scopes
     readonly property var projects: config.projects
 
     property Process tracker: Process {
@@ -46,8 +46,8 @@ QtObject {
                         config.integrations = obj.content;
                         pluginApi.saveSettings();
                         break;
-                    case "get_all_activities":
-                        config.activities = obj.content;
+                    case "get_all_scopes":
+                        config.scopes = obj.content;
                         pluginApi.saveSettings();
                         break;
                     case "get_all_projects":
@@ -86,24 +86,18 @@ QtObject {
 
     function startTimeEntry() {
         let entry = root.runningEntry;
+        let selectedScope = config.selectedScope;
         let selectedProject = config.selectedProject;
-        let selectedActivity = config.selectedActivity;
 
-        if (selectedProject) {
-            ToastService.showNotice("Please select a project");
-        }
-        if (selectedActivity) {
-            ToastService.showNotice("Please select an activity");
+        if (selectedScope) {
+            ToastService.showNotice("Please select a scope");
         }
 
         let request = {
             "message": "start_time_entry",
             "content": {
-                "context": {
-                    "activity_id": selectedActivity,
-                    "project_id": selectedProject,
-                    "workspace_id": null
-                },
+                "scope_id": selectedScope,
+                "project_id": selectedProject,
                 "description": "test"
             }
         };
@@ -120,9 +114,9 @@ QtObject {
         tracker.write(jsonString + "\n");
     }
 
-    function getAllActivities() {
+    function getAllScopes() {
         let request = {
-            "message": "get_all_activities",
+            "message": "get_all_scopes",
             "content": null
         };
         let jsonString = JSON.stringify(request);
