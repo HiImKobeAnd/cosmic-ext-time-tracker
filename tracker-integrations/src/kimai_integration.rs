@@ -34,7 +34,7 @@ impl KimaiClient {
     }
 }
 
-// Entity
+// ### Entities ###
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct KimaiProject {
@@ -113,8 +113,8 @@ impl From<KimaiTimeEntry> for TimeEntry {
     fn from(raw: KimaiTimeEntry) -> Self {
         Self {
             id: ApiId::Int(raw.id),
-            scope_id: ApiId::Int(raw.project_id),
-            project_id: ApiId::Int(raw.activity_id),
+            scope_id: Some(ApiId::Int(raw.project_id)),
+            project_id: Some(ApiId::Int(raw.activity_id)),
             billable: raw.billable,
             description: raw.description,
             start_time: raw.begin,
@@ -224,9 +224,16 @@ impl TrackerIntegration for KimaiClient {
         description: Option<String>,
     ) -> Result<TimeEntry, Error> {
         tracing::info!("Starting new time entry.");
+        let Some(project_id) = &time_entry.scope_id else {
+            return Err(Error::MissingRequiredField("Workspace ID".to_string()));
+        };
+        let Some(activity_id) = &time_entry.project_id else {
+            return Err(Error::MissingRequiredField("Project ID".to_string()));
+        };
+
         let body = json!({
-            "project": &time_entry.project_id,
-            "activity": &time_entry.scope_id,
+            "project": project_id,
+            "activity": activity_id,
             "description": description,
             "begin": Utc::now().to_rfc3339(),
         });

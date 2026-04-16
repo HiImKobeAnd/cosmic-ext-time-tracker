@@ -97,8 +97,8 @@ pub struct Project {
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Default)]
 pub struct TimeEntry {
     pub id: ApiId,
-    pub scope_id: ApiId,
-    pub project_id: ApiId,
+    pub scope_id: Option<ApiId>,
+    pub project_id: Option<ApiId>,
     pub billable: bool,
     pub description: Option<String>,
     pub start_time: DateTime<Utc>, // !TODO Research what implications that using UTC will have

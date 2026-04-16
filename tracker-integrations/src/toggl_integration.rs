@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 use async_trait::async_trait;
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Utc};
 use reqwest::{Client, header::CONTENT_TYPE};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -9,10 +9,7 @@ use serde_json::json;
 use crate::{
     error::Error,
     integration::TrackerIntegration,
-    models::{
-        Activity, ApiId, Project, ProjectContext, Tag, TimeEntry, TimeEntryContext,
-        TimeEntryUpdate, Workspace,
-    },
+    models::{ApiId, Project, Scope, TimeEntry, TimeEntryUpdate},
 };
 
 #[derive(Clone, Debug)]
@@ -33,6 +30,8 @@ impl TogglClient {
         Ok(integration)
     }
 }
+
+// ### Entities ###
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TogglProject {
@@ -63,43 +62,26 @@ pub struct TogglTimeEntry {
     project_id: Option<i64>,
     billable: bool,
     description: Option<String>,
-    // duration: Duration,
     start: DateTime<Utc>, // !TODO Research what implications that using UTC will have
     stop: Option<DateTime<Utc>>, // !TODO Research what implications that using UTC will have
+}
+impl From<TogglWorkspace> for Scope {
+    fn from(raw: TogglWorkspace) -> Self {
+        Self {
+            id: ApiId::Int(raw.id),
+            name: raw.name,
+            color: "ffffff".to_string(), // Toggl workspaces do not have colors
+        }
+    }
 }
 
 impl From<TogglProject> for Project {
     fn from(raw: TogglProject) -> Self {
         Self {
             id: ApiId::Int(raw.id),
+            scope_id: ApiId::Int(raw.workspace_id),
             name: raw.name,
-            modified_at: DateTime::default(), // TODO
             color: raw.color,
-            context: ProjectContext::Toggl {
-                workspace_id: ApiId::Int(raw.workspace_id),
-            },
-        }
-    }
-}
-
-impl From<TogglWorkspace> for Workspace {
-    fn from(raw: TogglWorkspace) -> Self {
-        Self {
-            id: ApiId::Int(raw.id),
-            name: raw.name,
-            modified_at: DateTime::default(), // TODO
-            active_project_count: raw.active_project_count,
-        }
-    }
-}
-
-impl From<TogglTag> for Tag {
-    fn from(raw: TogglTag) -> Self {
-        Self {
-            id: ApiId::Int(raw.id),
-            name: raw.name,
-            modified_at: DateTime::default(), // TODO
-            workspace_id: ApiId::Int(raw.workspace_id),
         }
     }
 }
@@ -108,20 +90,26 @@ impl From<TogglTimeEntry> for TimeEntry {
     fn from(raw: TogglTimeEntry) -> Self {
         Self {
             id: ApiId::Int(raw.id),
+            scope_id: Some(ApiId::Int(raw.workspace_id)),
+            project_id: raw.project_id.map(ApiId::Int),
             billable: raw.billable,
             description: raw.description,
-            duration: Duration::zero(), // TODO
             start_time: raw.start,
             stop_time: raw.stop,
-            // tags: todo!(),
-            context: TimeEntryContext {
-                workspace_id: Some(ApiId::Int(raw.workspace_id)),
-                project_id: raw.project_id.map(ApiId::Int),
-                activity_id: None,
-            },
         }
     }
 }
+
+// impl From<TogglTag> for Tag {
+//     fn from(raw: TogglTag) -> Self {
+//         Self {
+//             id: ApiId::Int(raw.id),
+//             name: raw.name,
+//             modified_at: DateTime::default(), // TODO
+//             workspace_id: ApiId::Int(raw.workspace_id),
+//         }
+//     }
+// }
 
 #[async_trait]
 impl TrackerIntegration for TogglClient {
@@ -153,14 +141,7 @@ impl TrackerIntegration for TogglClient {
         }
     }
 
-    async fn get_project_activities(
-        &self,
-        _project_id: ApiId,
-    ) -> Result<Vec<crate::models::Activity>, Error> {
-        todo!()
-    }
-
-    async fn get_all_workspaces(&self) -> Result<Vec<Workspace>, Error> {
+    async fn get_all_scopes(&self) -> Result<Vec<Scope>, Error> {
         tracing::info!("Getting all workspaces.");
         let resp: Vec<TogglWorkspace> = self
             .client
@@ -188,17 +169,9 @@ impl TrackerIntegration for TogglClient {
         Ok(resp.into_iter().map(Into::into).collect())
     }
 
-    async fn get_all_activities(&self) -> Result<Vec<Activity>, Error> {
-        todo!()
-    }
-
-    async fn stop_time_entry(
-        &self,
-        time_entry_context: TimeEntryContext,
-        time_entry_id: ApiId,
-    ) -> Result<(), Error> {
+    async fn stop_time_entry(&self, time_entry: &TimeEntry) -> Result<(), Error> {
         tracing::info!("Stopping time entry.");
-        let Some(workspace_id) = time_entry_context.workspace_id else {
+        let Some(workspace_id) = &time_entry.scope_id else {
             return Err(Error::MissingRequiredField("Workspace ID".to_string()));
         };
 
@@ -206,7 +179,7 @@ impl TrackerIntegration for TogglClient {
             .client
             .patch(format!(
                 "https://api.track.toggl.com/api/v9/workspaces/{}/time_entries/{}/stop",
-                workspace_id, time_entry_id
+                workspace_id, time_entry.id
             ))
             .basic_auth(&self.api_key, Some("api_token"))
             .header(CONTENT_TYPE, "application/json")
@@ -217,23 +190,19 @@ impl TrackerIntegration for TogglClient {
 
     async fn start_new_time_entry(
         &self,
-        time_entry_context: TimeEntryContext,
+        time_entry: &TimeEntry,
         description: Option<String>,
     ) -> Result<TimeEntry, Error> {
         tracing::info!("Starting new time entry.");
-        let Some(workspace_id) = time_entry_context.workspace_id else {
+        let Some(workspace_id) = &time_entry.scope_id else {
             return Err(Error::MissingRequiredField("Workspace ID".to_string()));
-        };
-        let Some(project_id) = time_entry_context.project_id else {
-            return Err(Error::MissingRequiredField("Project ID".to_string()));
         };
 
         let body = json!({
             "workspace_id": workspace_id,
-            "project_id": project_id,
+            "project_id": time_entry.project_id,
             "description": description,
             "created_with": "cosmic-ext-time-tracker",
-            "duration": -1,
             "start": Utc::now().to_rfc3339(),
         });
 
@@ -259,7 +228,7 @@ impl TrackerIntegration for TogglClient {
         time_entry_update: &TimeEntryUpdate,
     ) -> Result<TimeEntry, Error> {
         tracing::info!("Updaing time entry {}.", time_entry.id);
-        let Some(workspace_id) = &time_entry.context.workspace_id else {
+        let Some(workspace_id) = &time_entry.scope_id else {
             return Err(Error::MissingRequiredField("Workspace ID".to_string()));
         };
 
