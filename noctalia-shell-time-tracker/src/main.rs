@@ -11,7 +11,8 @@ use tracker_integrations::{
 
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 struct StartEntryData {
-    time_entry: TimeEntry,
+    scope_id: String,
+    project_id: Option<String>,
     description: Option<String>,
 }
 
@@ -84,7 +85,8 @@ async fn parse_message(client: &KimaiClient, message: BackendMessage) {
         BackendMessage::StartEntry(ref start_entry_data) => {
             let result = client
                 .start_new_time_entry(
-                    &start_entry_data.time_entry,
+                    start_entry_data.scope_id.clone(),
+                    start_entry_data.project_id.clone(),
                     start_entry_data.description.clone(),
                 )
                 .await;

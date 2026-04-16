@@ -16,7 +16,8 @@ pub trait TrackerIntegration: Debug + Send + Sync {
     async fn stop_time_entry(&self, time_entry: &TimeEntry) -> Result<(), Error>;
     async fn start_new_time_entry(
         &self,
-        time_entry: &TimeEntry,
+        scope_id: String,
+        project_id: Option<String>,
         description: Option<String>,
     ) -> Result<TimeEntry, Error>;
     async fn update_time_entry(

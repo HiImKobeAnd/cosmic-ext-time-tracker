@@ -18,11 +18,11 @@ Rectangle {
 
     property var config: pluginApi?.pluginSettings || ({})
     readonly property var runningEntry: config.runningEntry
-    readonly property var runningEntrysActivity: {
-        config.activities.find(p => String(p.id) == runningEntry.context.activity_id);
+    readonly property var runningEntrysProject: {
+        config.projects.find(p => String(p.id) == runningEntry.project_id);
     }
-    readonly property var selectedActivity: {
-        config.activities.find(p => String(p.id) == config.selectedActivity);
+    readonly property var selectedProject: {
+        config.projects.find(p => String(p.id) == config.selectedProject);
     }
     property string displayTime: ""
 
@@ -56,7 +56,7 @@ Rectangle {
             width: root.implicitWidth
             height: root.implicitWidth
             radius: width / 2
-            color: runningEntrysActivity?.color || selectedActivity.color
+            color: runningEntrysProject?.color || selectedProject.color
         }
 
         NText {

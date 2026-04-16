@@ -9,7 +9,7 @@ use serde_json::json;
 use crate::{
     error::Error,
     integration::TrackerIntegration,
-    models::{ApiId, Project, Scope, TimeEntry, TimeEntryUpdate},
+    models::{Project, Scope, TimeEntry, TimeEntryUpdate},
 };
 
 #[derive(Clone, Debug)]
@@ -47,7 +47,7 @@ struct KimaiProject {
 struct KimaiActivity {
     id: i64,
     name: String,
-    project_id: i64,
+    project: i64,
     color: Option<String>,
 }
 
@@ -62,8 +62,8 @@ struct KimaiActivityExpanded {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct KimaiTimeEntry {
     id: i64,
-    activity_id: i64,
-    project_id: i64,
+    activity: i64,
+    project: i64,
     billable: bool,
     description: Option<String>,
     begin: DateTime<Utc>, // !TODO Research what implications that using UTC will have
@@ -91,7 +91,7 @@ struct KimaiTimeEntryExpanded {
 impl From<KimaiProject> for Scope {
     fn from(raw: KimaiProject) -> Self {
         Self {
-            id: ApiId::Int(raw.id),
+            id: raw.id.to_string(),
             name: raw.name,
             color: raw.color.unwrap_or("ffffff".to_string()),
         }
@@ -101,8 +101,8 @@ impl From<KimaiProject> for Scope {
 impl From<KimaiActivity> for Project {
     fn from(raw: KimaiActivity) -> Self {
         Self {
-            id: ApiId::Int(raw.id),
-            scope_id: ApiId::Int(raw.project_id),
+            id: raw.id.to_string(),
+            scope_id: raw.project.to_string(),
             name: raw.name,
             color: raw.color.unwrap_or("ffffff".to_string()),
         }
@@ -112,9 +112,9 @@ impl From<KimaiActivity> for Project {
 impl From<KimaiTimeEntry> for TimeEntry {
     fn from(raw: KimaiTimeEntry) -> Self {
         Self {
-            id: ApiId::Int(raw.id),
-            scope_id: Some(ApiId::Int(raw.project_id)),
-            project_id: Some(ApiId::Int(raw.activity_id)),
+            id: raw.id.to_string(),
+            scope_id: Some(raw.project.to_string()),
+            project_id: Some(raw.activity.to_string()),
             billable: raw.billable,
             description: raw.description,
             start_time: raw.begin,
@@ -162,8 +162,8 @@ impl TrackerIntegration for KimaiClient {
             Some(active_entry) => {
                 let entry = KimaiTimeEntry {
                     id: active_entry.id,
-                    project_id: active_entry.project.id,
-                    activity_id: active_entry.activity.id,
+                    project: active_entry.project.id,
+                    activity: active_entry.activity.id,
                     billable: active_entry.billable,
                     description: active_entry.description.clone(),
                     begin: active_entry.begin,
@@ -220,19 +220,17 @@ impl TrackerIntegration for KimaiClient {
 
     async fn start_new_time_entry(
         &self,
-        time_entry: &TimeEntry,
+        scope_id: String,
+        project_id: Option<String>,
         description: Option<String>,
     ) -> Result<TimeEntry, Error> {
         tracing::info!("Starting new time entry.");
-        let Some(project_id) = &time_entry.scope_id else {
-            return Err(Error::MissingRequiredField("Workspace ID".to_string()));
-        };
-        let Some(activity_id) = &time_entry.project_id else {
+        let Some(activity_id) = project_id else {
             return Err(Error::MissingRequiredField("Project ID".to_string()));
         };
 
         let body = json!({
-            "project": project_id,
+            "project": scope_id,
             "activity": activity_id,
             "description": description,
             "begin": Utc::now().to_rfc3339(),

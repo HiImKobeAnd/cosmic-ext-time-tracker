@@ -53,34 +53,12 @@ impl Integration {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-#[serde(untagged)]
-pub enum ApiId {
-    Int(i64),
-    String(String),
-}
-
-impl Default for ApiId {
-    fn default() -> Self {
-        Self::Int(0)
-    }
-}
-
-impl fmt::Display for ApiId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ApiId::Int(id) => write!(f, "{}", id),
-            ApiId::String(id) => write!(f, "{}", id),
-        }
-    }
-}
-
 // Main domain
 
 // Kimai project & Toggl workspace
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Default)]
 pub struct Scope {
-    pub id: ApiId,
+    pub id: String,
     pub name: String,
     pub color: String,
 }
@@ -88,17 +66,17 @@ pub struct Scope {
 // Kimai activity & Toggl Project
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Default)]
 pub struct Project {
-    pub id: ApiId,
-    pub scope_id: ApiId,
+    pub id: String,
+    pub scope_id: String,
     pub name: String,
     pub color: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Default)]
 pub struct TimeEntry {
-    pub id: ApiId,
-    pub scope_id: Option<ApiId>,
-    pub project_id: Option<ApiId>,
+    pub id: String,
+    pub scope_id: Option<String>,
+    pub project_id: Option<String>,
     pub billable: bool,
     pub description: Option<String>,
     pub start_time: DateTime<Utc>, // !TODO Research what implications that using UTC will have
@@ -107,10 +85,10 @@ pub struct TimeEntry {
 
 // #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Default)]
 // pub struct Tag {
-//     pub id: ApiId,
+//     pub id: String,
 //     pub name: String,
 //     pub modified_at: DateTime<Utc>,
-//     pub workspace_id: ApiId,
+//     pub workspace_id: String,
 // }
 
 // Extra DTOs
