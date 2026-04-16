@@ -88,6 +88,7 @@ QtObject {
         let entry = root.runningEntry;
         let selectedScope = config.selectedScope;
         let selectedProject = config.selectedProject;
+        let description = config.description;
 
         if (selectedScope) {
             ToastService.showNotice("Please select a scope");
@@ -98,7 +99,7 @@ QtObject {
             "content": {
                 "scope_id": selectedScope,
                 "project_id": selectedProject,
-                "description": "test"
+                "description": description
             }
         };
         let jsonString = JSON.stringify(request);

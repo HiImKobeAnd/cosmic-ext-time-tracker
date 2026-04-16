@@ -70,6 +70,16 @@ Item {
                     });
                 }
             }
+
+            NTextInput {
+                label: "Description"
+                description: "Input description"
+                text: config.description
+                onTextChanged: {
+                    config.description = text.trim();
+                    pluginApi.saveSettings();
+                }
+            }
         }
     }
 }

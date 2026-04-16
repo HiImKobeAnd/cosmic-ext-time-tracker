@@ -19,7 +19,7 @@ Rectangle {
     property var config: pluginApi?.pluginSettings || ({})
     readonly property var runningEntry: config.runningEntry
     readonly property var runningEntrysProject: {
-        config.projects.find(p => String(p.id) == runningEntry.project_id);
+        config.projects.find(p => String(p.id) == runningEntry?.project_id);
     }
     readonly property var selectedProject: {
         config.projects.find(p => String(p.id) == config.selectedProject);
