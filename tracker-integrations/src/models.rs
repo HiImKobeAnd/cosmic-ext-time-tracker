@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MPL-2.0
 
-use core::fmt;
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};

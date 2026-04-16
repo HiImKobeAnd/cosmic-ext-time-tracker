@@ -6,10 +6,9 @@ use chrono::NaiveTime;
 use cosmic::{
     app,
     iced::{widget::row, Alignment, Length},
-    iced_winit::graphics::text::cosmic_text::Align,
     widget::{
         button, dropdown, icon,
-        text::{self, caption},
+        text::{self},
         text_input, Column,
     },
     Element, Task,
@@ -17,16 +16,15 @@ use cosmic::{
 use std::sync::Arc;
 use tracker_integrations::{
     integration::TrackerIntegration,
-    models::{Activity, Project, ProjectContext, TimeEntry, TimeEntryUpdate, Workspace},
+    models::{Project, Scope, TimeEntry, TimeEntryUpdate},
 };
 
 pub struct TimerPage {
     pub state: GlobalState,
     pub integration_client: Option<Arc<dyn TrackerIntegration>>,
     state_handler: cosmic::cosmic_config::Config,
-    current_workspace: Option<usize>,
+    current_scope: Option<usize>,
     current_project: Option<usize>,
-    current_activity: Option<usize>,
     current_description: Option<String>,
     start_time_field_text: String,
     start_time_field_editable: bool,
@@ -34,15 +32,12 @@ pub struct TimerPage {
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    GetWorkspaces,
-    WorkspacesGotten(Option<Vec<Workspace>>),
+    GetScopes,
+    ScopesGotten(Option<Vec<Scope>>),
     GetProjects,
     ProjectsGotten(Option<Vec<Project>>),
-    GetActivities,
-    ActivitiesGotten(Option<Vec<Activity>>),
-    WorkspaceChanged(usize),
+    ScopeChanged(usize),
     ProjectChanged(usize),
-    ActivityChanged(usize),
     DescriptionChanged(String),
     GetExistingTimeEntry,
     ExistingTimeEntryGotten(Option<TimeEntry>),
@@ -75,48 +70,31 @@ impl TimerPage {
         .on_input(Message::StartTimeFieldTextChanged)
         .on_submit(Message::StartTimeFieldSubmitted)
         .on_unfocus(Message::StartTimeFieldUnfocused);
-        let workspace_selector = dropdown::dropdown(
+        let scope_selector = dropdown::dropdown(
             self.state
-                .workspaces
+                .scopes
                 .iter()
                 .map(|x| x.name.clone())
                 .collect::<Vec<String>>(),
-            self.current_workspace,
-            Message::WorkspaceChanged,
+            self.current_scope,
+            Message::ScopeChanged,
         );
         let project_selector = dropdown::dropdown(
             self.state
                 .projects
                 .iter()
-                .filter(|x| {
-                    if let ProjectContext::Toggl { workspace_id } = &x.context {
-                        return self.state.selected_workspace.as_ref().is_some_and(
-                            |selected_workspace| *workspace_id == selected_workspace.id,
-                        );
-                    }
-                    true
+                .filter(|p| {
+                    self.state
+                        .selected_scope
+                        .as_ref()
+                        .is_some_and(|selected_scope| p.scope_id == selected_scope.id)
                 })
                 .map(|x| x.name.clone())
                 .collect::<Vec<String>>(),
             self.current_project,
             Message::ProjectChanged,
         );
-        let activity_selector = dropdown::dropdown(
-            self.state
-                .activities
-                .iter()
-                .filter(|x| {
-                    if let Some(selected_project) = &self.state.selected_project {
-                        x.project_id == selected_project.id
-                    } else {
-                        false
-                    }
-                })
-                .map(|x| x.name.clone())
-                .collect::<Vec<String>>(),
-            self.current_activity,
-            Message::ActivityChanged,
-        );
+
         let description_input = text_input::text_input(
             "Description",
             self.current_description.clone().unwrap_or_default(),
@@ -135,42 +113,12 @@ impl TimerPage {
             .width(Length::Fill)
             .into(),
         );
-        if let Some(selected_tracker) = &self.state.selected_tracker {
-            match selected_tracker {
-                tracker_integrations::models::Integration::TogglIntegration => {
-                    // elements.push(text::body("Workspace").width(Length::Fill).into());
-                    elements.push(
-                        row![
-                            text::body("workspace"),
-                            workspace_selector.width(Length::Fill)
-                        ]
-                        .into(),
-                    );
-                    elements.push(text::body("Project").width(Length::Fill).into());
-                    elements.push(project_selector.width(Length::Fill).into());
-                    elements.push(text::body("Description").width(Length::Fill).into());
-                    elements.push(description_input.width(Length::Fill).into());
-                }
-                tracker_integrations::models::Integration::KimaiIntegration => {
-                    elements.push(
-                        row![
-                            text::body("Project").align_y(Alignment::Center),
-                            project_selector.width(Length::Fill)
-                        ]
-                        .into(),
-                    );
-                    elements.push(
-                        row![
-                            text::body("Activity").align_y(Alignment::Center),
-                            activity_selector.width(Length::Fill)
-                        ]
-                        .into(),
-                    );
-                    elements.push(text::body("Description").width(Length::Fill).into());
-                    elements.push(description_input.width(Length::Fill).into());
-                }
-            }
-        }
+        elements.push(text::body("Scope").width(Length::Fill).into());
+        elements.push(scope_selector.width(Length::Fill).into());
+        elements.push(text::body("Project").width(Length::Fill).into());
+        elements.push(project_selector.width(Length::Fill).into());
+        elements.push(text::body("Description").width(Length::Fill).into());
+        elements.push(description_input.width(Length::Fill).into());
         elements.push(row![refetch_existing_timer].width(Length::Fill).into());
 
         Element::from(Column::new().extend(elements))
@@ -179,19 +127,19 @@ impl TimerPage {
 
     pub fn update(&mut self, message: Message) -> app::Task<Message> {
         match message {
-            Message::GetWorkspaces => {
+            Message::GetScopes => {
                 if let Some(client) = &self.integration_client {
                     let client = Arc::clone(client);
                     return cosmic::task::future(async move {
-                        let workspaces = client.get_all_workspaces().await.ok();
-                        Message::WorkspacesGotten(workspaces)
+                        let scopes = client.get_all_scopes().await.ok();
+                        Message::ScopesGotten(scopes)
                     });
                 };
                 Task::none()
             }
-            Message::WorkspacesGotten(workspaces) => {
-                if let Some(workspaces) = workspaces {
-                    let _ = self.state.set_workspaces(&self.state_handler, workspaces);
+            Message::ScopesGotten(scopes) => {
+                if let Some(scopes) = scopes {
+                    let _ = self.state.set_scopes(&self.state_handler, scopes);
                 }
                 Task::none()
             }
@@ -213,27 +161,11 @@ impl TimerPage {
                 }
                 Task::none()
             }
-            Message::GetActivities => {
-                if let Some(client) = &self.integration_client {
-                    let client = Arc::clone(client);
-                    return cosmic::task::future(async move {
-                        let activities = client.get_all_activities().await.ok();
-                        Message::ActivitiesGotten(activities)
-                    });
-                }
-                Task::none()
-            }
-            Message::ActivitiesGotten(activities) => {
-                if let Some(activities) = activities {
-                    let _ = self.state.set_activities(&self.state_handler, activities);
-                }
-                Task::none()
-            }
-            Message::WorkspaceChanged(index) => {
-                self.current_workspace = Some(index);
-                let _ = self.state.set_selected_workspace(
+            Message::ScopeChanged(index) => {
+                self.current_scope = Some(index);
+                let _ = self.state.set_selected_scope(
                     &self.state_handler,
-                    Some(self.state.workspaces[index].clone()),
+                    Some(self.state.scopes[index].clone()),
                 );
                 let _ = self.state.set_selected_project(&self.state_handler, None);
                 Task::none()
@@ -243,15 +175,6 @@ impl TimerPage {
                 let _ = self.state.set_selected_project(
                     &self.state_handler,
                     Some(self.state.projects[index].clone()),
-                );
-                let _ = self.state.set_selected_activity(&self.state_handler, None);
-                Task::none()
-            }
-            Message::ActivityChanged(index) => {
-                self.current_activity = Some(index);
-                let _ = self.state.set_selected_activity(
-                    &self.state_handler,
-                    Some(self.state.activities[index].clone()),
                 );
                 Task::none()
             }
@@ -347,12 +270,9 @@ impl TimerPage {
         state_handler: cosmic::cosmic_config::Config,
         integration_client: Option<Arc<dyn TrackerIntegration>>,
     ) -> Self {
-        let mut current_workspace = None;
-        if let Some(selected_workspace) = &state.selected_workspace {
-            current_workspace = state
-                .workspaces
-                .iter()
-                .position(|w| w.id == selected_workspace.id);
+        let mut current_scope = None;
+        if let Some(selected_scope) = &state.selected_scope {
+            current_scope = state.scopes.iter().position(|w| w.id == selected_scope.id);
         }
         let mut current_project = None;
         if let Some(selected_project) = &state.selected_project {
@@ -361,22 +281,14 @@ impl TimerPage {
                 .iter()
                 .position(|p| p.id == selected_project.id);
         }
-        let mut current_activity = None;
-        if let Some(selected_activity) = &state.selected_activity {
-            current_activity = state
-                .activities
-                .iter()
-                .position(|p| p.id == selected_activity.id);
-        }
         let current_description = state.current_description.clone();
 
         TimerPage {
             state,
             state_handler,
             integration_client,
-            current_workspace,
+            current_scope: current_scope,
             current_project,
-            current_activity,
             current_description,
             start_time_field_text: String::default(),
             start_time_field_editable: false,

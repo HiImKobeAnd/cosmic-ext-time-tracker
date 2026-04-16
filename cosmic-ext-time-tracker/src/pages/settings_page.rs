@@ -21,8 +21,8 @@ use crate::{applet, config::GlobalState};
 pub struct SettingsPage {
     pub state: GlobalState,
     pub state_handler: cosmic::cosmic_config::Config,
-    trackers: Vec<Integration>,
-    selected_tracker: Option<Integration>,
+    integrations: Vec<Integration>,
+    selected_integration: Option<Integration>,
     api_key: String,
     integration_url: String,
     pub integration_client: Option<Arc<dyn TrackerIntegration>>,
@@ -30,7 +30,7 @@ pub struct SettingsPage {
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    TrackerSelected(Integration),
+    IntegrationSelected(Integration),
     APIKeyInput(String),
     APIKeySubmitted,
     IntegrationUrlInput(String),
@@ -48,12 +48,12 @@ impl From<Message> for applet::Message {
 
 impl SettingsPage {
     pub fn view(&self) -> cosmic::Element<'_, Message> {
-        let tracker_selector = pick_list(
-            self.trackers.clone(),
-            self.selected_tracker.as_ref(),
-            Message::TrackerSelected,
+        let integration_selector = pick_list(
+            self.integrations.clone(),
+            self.selected_integration.as_ref(),
+            Message::IntegrationSelected,
         )
-        .placeholder("Select Tracker.");
+        .placeholder("Select Integration.");
         let integration_url_input = text_input("https://kimai.example.net", &self.integration_url)
             .on_input(Message::IntegrationUrlInput)
             .on_submit(Message::IntegrationUrlSubmitted);
@@ -64,10 +64,10 @@ impl SettingsPage {
 
         let mut elements = Vec::new();
 
-        elements.push(tracker_selector.width(Length::Fill).into());
+        elements.push(integration_selector.width(Length::Fill).into());
 
-        if let Some(selected_tracker) = &self.state.selected_tracker {
-            match selected_tracker {
+        if let Some(selected_integration) = &self.state.selected_integration {
+            match selected_integration {
                 tracker_integrations::models::Integration::TogglIntegration => {
                     elements.push(api_key_input.width(Length::Fill).into());
                 }
@@ -90,11 +90,11 @@ impl SettingsPage {
 
     pub fn update(&mut self, message: Message) -> app::Task<Message> {
         match message {
-            Message::TrackerSelected(selected) => {
-                self.selected_tracker = Some(selected.clone());
+            Message::IntegrationSelected(selected) => {
+                self.selected_integration = Some(selected.clone());
                 let _ = self
                     .state
-                    .set_selected_tracker(&self.state_handler, Some(selected));
+                    .set_selected_integration(&self.state_handler, Some(selected));
                 Task::none()
             }
             Message::APIKeyInput(api_key) => {
@@ -102,8 +102,8 @@ impl SettingsPage {
                 Task::none()
             }
             Message::APIKeySubmitted => {
-                if let Some(selected_tracker) = &self.selected_tracker {
-                    let _ = set_api_key(selected_tracker, self.api_key.clone());
+                if let Some(selected_integration) = &self.selected_integration {
+                    let _ = set_api_key(selected_integration, self.api_key.clone());
                 }
                 Task::none()
             }
@@ -112,18 +112,18 @@ impl SettingsPage {
                 Task::none()
             }
             Message::IntegrationUrlSubmitted => {
-                if let Some(selected_tracker) = &self.selected_tracker {
-                    let _ = set_integration_url(selected_tracker, self.integration_url.clone());
+                if let Some(selected_integration) = &self.selected_integration {
+                    let _ = set_integration_url(selected_integration, self.integration_url.clone());
                 }
                 Task::none()
             }
             Message::SaveCredentials => {
-                let Some(selected_tracker) = &self.state.selected_tracker else {
+                let Some(selected_integration) = &self.state.selected_integration else {
                     return Task::none();
                 };
 
                 let mut tasks: Vec<Task<Message>> = Vec::new();
-                match selected_tracker {
+                match selected_integration {
                     Integration::TogglIntegration => {
                         tasks.push(cosmic::task::message(Message::APIKeySubmitted));
                     }
@@ -136,17 +136,17 @@ impl SettingsPage {
             }
             Message::CredentialsSaved => Task::none(),
             Message::RemoveCredentials => {
-                let Some(selected_tracker) = &self.state.selected_tracker else {
+                let Some(selected_integration) = &self.state.selected_integration else {
                     return Task::none();
                 };
 
-                match selected_tracker {
+                match selected_integration {
                     Integration::TogglIntegration => {
-                        let _ = remove_api_key(selected_tracker);
+                        let _ = remove_api_key(selected_integration);
                     }
                     Integration::KimaiIntegration => {
-                        let _ = remove_api_key(selected_tracker);
-                        let _ = remove_integration_url(selected_tracker);
+                        let _ = remove_api_key(selected_integration);
+                        let _ = remove_integration_url(selected_integration);
                     }
                 };
                 cosmic::task::message(Message::CredentialsSaved)
@@ -159,17 +159,17 @@ impl SettingsPage {
         state_handler: cosmic::cosmic_config::Config,
         integration_client: Option<Arc<dyn TrackerIntegration>>,
     ) -> Self {
-        let selected_tracker = state.selected_tracker.clone();
+        let selected_integration = state.selected_integration.clone();
         let integration_url = state
-            .selected_tracker
+            .selected_integration
             .as_ref()
-            .and_then(|tracker| get_integration_url(tracker).ok())
+            .and_then(|integration| get_integration_url(integration).ok())
             .unwrap_or_default();
         SettingsPage {
             state,
             state_handler,
-            trackers: vec![Integration::TogglIntegration, Integration::KimaiIntegration],
-            selected_tracker,
+            integrations: vec![Integration::TogglIntegration, Integration::KimaiIntegration],
+            selected_integration,
             api_key: String::default(),
             integration_url,
             integration_client,

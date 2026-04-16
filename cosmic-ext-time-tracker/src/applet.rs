@@ -17,10 +17,7 @@ use cosmic::{
 };
 use icu::locale::Locale;
 use std::{sync::Arc, time::Duration};
-use tracker_integrations::{
-    integration::TrackerIntegration,
-    models::{Integration, TimeEntry, TimeEntryContext},
-};
+use tracker_integrations::{integration::TrackerIntegration, models::TimeEntry};
 
 use crate::{
     config::{GlobalState, GLOBAL_STATE_VERSION},
@@ -134,32 +131,17 @@ fn color_circle(color: Color, size: f32) -> Element<'static, Message> {
 }
 
 fn get_indicator_color(state: &GlobalState) -> Option<Color> {
-    let Some(selected_tracker) = &state.selected_tracker else {
-        return None;
-    };
-
     if let Some(running_time_entry) = &state.running_time_entry {
-        match selected_tracker {
-            Integration::TogglIntegration => running_time_entry
-                .context
-                .get_project(&state.projects)
-                .and_then(|a| Color::parse(&a.color)),
-            Integration::KimaiIntegration => running_time_entry
-                .context
-                .get_activity(&state.activities)
-                .and_then(|p| Color::parse(&p.color)),
-        }
+        running_time_entry
+            .project_id
+            .as_ref()
+            .and_then(|id| state.projects.iter().find(|p| p.id == *id))
+            .and_then(|p| Color::parse(&p.color))
     } else {
-        match selected_tracker {
-            Integration::TogglIntegration => state
-                .selected_project
-                .as_ref()
-                .and_then(|p| Color::parse(&p.color)),
-            Integration::KimaiIntegration => state
-                .selected_activity
-                .as_ref()
-                .and_then(|a| Color::parse(&a.color)),
-        }
+        state
+            .selected_project
+            .as_ref()
+            .and_then(|p| Color::parse(&p.color))
     }
 }
 
@@ -306,27 +288,25 @@ impl cosmic::Application for AppletModel {
                 Task::none()
             }
             Message::StartTimer => {
-                if let Some(client) = &self.integration_client {
-                    let client = Arc::clone(client);
+                let Some(client) = &self.integration_client else {
+                    return Task::none();
+                };
+                let Some(scope) = self.state.selected_scope.as_ref().map(|s| s.id.clone()) else {
+                    return Task::none();
+                };
+                let project = self.state.selected_project.as_ref().map(|p| p.id.clone());
+                let current_description = self.state.current_description.clone();
 
-                    let context = TimeEntryContext {
-                        activity_id: self.state.selected_activity.as_ref().map(|a| a.id.clone()),
-                        workspace_id: self.state.selected_workspace.as_ref().map(|w| w.id.clone()),
-                        project_id: self.state.selected_project.as_ref().map(|p| p.id.clone()),
-                    };
-                    let current_description = self.state.current_description.clone();
-
-                    return cosmic::task::future(async move {
-                        let time_entry = client
-                            .start_new_time_entry(context, current_description)
-                            .await;
-                        if let Ok(time_entry) = time_entry {
-                            return Message::TimerStarted(time_entry);
-                        }
-                        Message::Tick // TODO Tick used as an escape.
-                    });
-                }
-                Task::none()
+                let client = Arc::clone(client);
+                return cosmic::task::future(async move {
+                    let time_entry = client
+                        .start_new_time_entry(scope, project, current_description)
+                        .await;
+                    if let Ok(time_entry) = time_entry {
+                        return Message::TimerStarted(time_entry);
+                    }
+                    Message::Tick // TODO Tick used as an escape.
+                });
             }
             Message::TimerStarted(time_entry) => {
                 let _ = self
@@ -339,7 +319,7 @@ impl cosmic::Application for AppletModel {
                     let client = Arc::clone(client);
                     if let Some(entry) = self.state.running_time_entry.clone() {
                         return cosmic::task::future(async move {
-                            let _ = client.stop_time_entry(entry.context, entry.id).await;
+                            let _ = client.stop_time_entry(&entry).await;
                             Message::TimerStopped
                         });
                     }
@@ -352,21 +332,20 @@ impl cosmic::Application for AppletModel {
             }
             Message::StateChanged(state) => {
                 tracing::info!("State changed.");
-                let selected_tracker = self.state.selected_tracker.clone();
+                let selected_integration = self.state.selected_integration.clone();
                 self.state = state.clone();
                 self.settings_page.state = state.clone();
                 self.timer_page.state = state.clone();
 
-                if selected_tracker != state.selected_tracker {
+                if selected_integration != state.selected_integration {
                     tracing::info!("Tracker Changed.");
-                    let _ = self
-                        .state
-                        .set_selected_tracker(&self.state_handler, state.selected_tracker.clone());
-                    let _ = self.state.set_workspaces(&self.state_handler, Vec::new());
-                    let _ = self.state.set_activities(&self.state_handler, Vec::new());
+                    let _ = self.state.set_selected_integration(
+                        &self.state_handler,
+                        state.selected_integration.clone(),
+                    );
+                    let _ = self.state.set_scopes(&self.state_handler, Vec::new());
                     let _ = self.state.set_projects(&self.state_handler, Vec::new());
-                    let _ = self.state.set_selected_workspace(&self.state_handler, None);
-                    let _ = self.state.set_selected_activity(&self.state_handler, None);
+                    let _ = self.state.set_selected_scope(&self.state_handler, None);
                     let _ = self.state.set_selected_project(&self.state_handler, None);
                     let _ = self.state.set_running_time_entry(&self.state_handler, None);
                     return cosmic::task::message(Message::CreateIntegration);
@@ -375,13 +354,13 @@ impl cosmic::Application for AppletModel {
             }
             Message::CreateIntegration => {
                 tracing::info!("Creating integration.");
-                let selected_tracker = match self.state.selected_tracker.clone() {
-                    Some(selected_tracker) => selected_tracker,
+                let selected_integration = match self.state.selected_integration.clone() {
+                    Some(selected_integration) => selected_integration,
                     None => return Task::none(),
                 };
 
                 cosmic::task::future(async move {
-                    let client = selected_tracker.create_client().await;
+                    let client = selected_integration.create_client().await;
                     Message::IntegrationCreated(client)
                 })
             }
@@ -414,21 +393,10 @@ impl cosmic::Application for AppletModel {
                 startup_tasks.push(cosmic::task::message(
                     timer_page::Message::GetExistingTimeEntry,
                 ));
+                startup_tasks.push(cosmic::task::message(timer_page::Message::GetScopes));
                 startup_tasks.push(cosmic::task::message(timer_page::Message::GetProjects));
 
-                if let Some(selected_tracker) = &self.state.selected_tracker {
-                    match selected_tracker {
-                        Integration::TogglIntegration => startup_tasks
-                            .push(cosmic::task::message(timer_page::Message::GetWorkspaces)),
-                        Integration::KimaiIntegration => {
-                            startup_tasks
-                                .push(cosmic::task::message(timer_page::Message::GetActivities));
-                        }
-                    }
-                    return cosmic::task::batch(startup_tasks);
-                }
-
-                Task::none()
+                return cosmic::task::batch(startup_tasks);
             }
         }
     }
