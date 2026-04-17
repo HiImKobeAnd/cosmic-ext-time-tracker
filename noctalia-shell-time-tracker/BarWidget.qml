@@ -18,8 +18,14 @@ Rectangle {
 
     property var config: pluginApi?.pluginSettings || ({})
     readonly property var runningEntry: config.runningEntry
+    readonly property var runningEntrysScope: {
+        config.scopes.find(s => String(s.id) == runningEntry?.scope_id);
+    }
     readonly property var runningEntrysProject: {
         config.projects.find(p => String(p.id) == runningEntry?.project_id);
+    }
+    readonly property var selectedScope: {
+        config.scopes.find(s => String(s.id) == config.selectedScope);
     }
     readonly property var selectedProject: {
         config.projects.find(p => String(p.id) == config.selectedProject);
@@ -56,7 +62,7 @@ Rectangle {
             width: root.implicitWidth
             height: root.implicitWidth
             radius: width / 2
-            color: runningEntrysProject?.color || selectedProject.color
+            color: runningEntrysProject?.color || selectedProject?.color
         }
 
         NText {
@@ -75,6 +81,17 @@ Rectangle {
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
         acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+
+        onEntered: {
+            let rows = [];
+            rows.push(["Scope", runningEntrysScope?.name || selectedScope?.name]);
+            rows.push(["Project", runningEntrysProject?.name || selectedProject?.name]);
+            TooltipService.show(root, rows, BarService.getTooltipDirection(root.screen?.name));
+        }
+
+        onExited: {
+            TooltipService.hide();
+        }
 
         onClicked: mouse => {
             if (pluginApi && mouse.button == Qt.LeftButton) {

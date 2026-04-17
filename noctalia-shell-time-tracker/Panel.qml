@@ -53,6 +53,7 @@ Item {
                 onSelected: key => {
                     Qt.callLater(() => {
                         config.selectedScope = key;
+                        config.selectedProject = null;
                         pluginApi.saveSettings();
                     });
                 }
