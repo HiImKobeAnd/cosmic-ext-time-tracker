@@ -30,7 +30,9 @@ QtObject {
 
                     switch (obj.message) {
                     case "get_current_time_entry":
-                        console.log(obj.content);
+                        if (obj.content == null) {
+                            ToastService.showNotice("No running time entry");
+                        }
                         config.runningEntry = obj.content;
                         pluginApi.saveSettings();
                         break;
@@ -41,6 +43,7 @@ QtObject {
                     case "start_time_entry":
                         config.runningEntry = obj.content;
                         pluginApi.saveSettings();
+                        ToastService.showNotice("Running entry");
                         break;
                     case "get_all_integrations":
                         config.integrations = obj.content;

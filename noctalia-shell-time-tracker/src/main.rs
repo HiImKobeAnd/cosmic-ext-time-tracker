@@ -72,9 +72,8 @@ async fn main() {
 async fn parse_message(client: &KimaiClient, message: BackendMessage) {
     match message {
         BackendMessage::GetCurrentEntry(_) => {
-            if let Some(current_time_entry) = client.get_current_time_entry().await.unwrap() {
-                send_to_stdout(message.as_name(), current_time_entry);
-            };
+            let current_time_entry = client.get_current_time_entry().await.unwrap();
+            send_to_stdout(message.as_name(), current_time_entry);
         }
         BackendMessage::StopEntry(ref entry) => {
             let _ = client.stop_time_entry(entry).await;

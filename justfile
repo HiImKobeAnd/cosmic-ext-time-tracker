@@ -8,9 +8,6 @@ appid := 'com.github.hiimkobeand.cosmic-ext-time-tracker'
 # run *args:
 # env RUST_BACKTRACE=full cargo run --release {{args}}
 
-dev-noctalia:
-    -pkill quickshell
-    NOCTALIA_DEBUG=1 noctalia-shell 
 reset-shell:
     -pkill quickshell
     cargo build --bin noctalia-shell-time-tracker

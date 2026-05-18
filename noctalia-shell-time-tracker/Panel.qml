@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import qs.Commons
 import qs.Widgets
+import qs.Services.UI
 
 Item {
     id: root
@@ -79,6 +80,15 @@ Item {
                 onTextChanged: {
                     config.description = text.trim();
                     pluginApi.saveSettings();
+                }
+            }
+            NButton {
+                text: "Refetch"
+                icon: "refresh"
+                tooltipText: "Refetch from integration"
+                onClicked: {
+                    // ToastService.showNotice("Refetched from integration");
+                    Backend.getCurrentTimeEntry();
                 }
             }
         }

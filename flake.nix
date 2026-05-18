@@ -38,6 +38,16 @@
       in
       {
         devShells.default =
+          let
+            qmlls-wrapped =
+              with pkgs;
+              writeShellScriptBin "qmlls" ''
+                exec ${pkgs.qt6.qtdeclarative}/bin/qmlls \
+                -i "${pkgs.qt6.qtdeclarative}/lib/qt-6/qml" \
+                -i "${pkgs.qt6.qtbase}/lib/qt-6/qml" \
+                "$@"
+              '';
+          in
           with pkgs;
           mkShell {
             buildInputs = [
