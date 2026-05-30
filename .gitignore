@@ -12,8 +12,5 @@ debian/*
 !debian/install
 !debian/rules
 !debian/source
-
 .direnv
 .env
-config.toml
-settings.json

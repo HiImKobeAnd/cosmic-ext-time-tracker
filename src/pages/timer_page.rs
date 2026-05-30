@@ -14,7 +14,7 @@ use cosmic::{
     Task,
 };
 use std::sync::Arc;
-use tracker_integrations::{
+use tracker_api::{
     integration::TrackerIntegration,
     models::{Project, Scope, TimeEntry, TimeEntryUpdate},
 };

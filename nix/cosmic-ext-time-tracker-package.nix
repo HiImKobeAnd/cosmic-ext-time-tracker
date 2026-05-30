@@ -1,10 +1,11 @@
 {
   lib,
-  version,
-  dbus,
-  libcosmicAppHook,
-  git,
+  stdenv,
   rustPlatform,
+  just,
+  libcosmicAppHook,
+  dbus,
+  version,
 }:
 
 rustPlatform.buildRustPackage (finalAttrs: {
@@ -13,22 +14,27 @@ rustPlatform.buildRustPackage (finalAttrs: {
 
   src = lib.cleanSource ../.;
 
-  buildAndTestSubdir = "cosmic-ext-time-tracker";
-
-  cargoHash = "sha256-W4M1XUNOHbaZiXS5AhqsxzV7+HJTvGO1oriNLCsiMPI=";
+  cargoHash = "sha256-5fTg9ZEhu33QgEsBOlFhNChS95qFDagBpIBjuCN/zIk=";
 
   VERGEN_GIT_SHA = "unknown";
   VERGEN_GIT_COMMIT_DATE = "unknown";
 
-  # Buildtime
   nativeBuildInputs = [
-    git
+    just
     libcosmicAppHook
   ];
 
-  # Runtime
   buildInputs = [
     dbus
+  ];
+
+  justFlags = [
+    "--set"
+    "prefix"
+    (placeholder "out")
+    "--set"
+    "bin-src"
+    "target/release/cosmic-ext-time-tracker"
   ];
 
   meta = {

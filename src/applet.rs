@@ -5,7 +5,7 @@ use cosmic::{
     cosmic_config::CosmicConfigEntry,
     cosmic_theme::Spacing,
     iced::{border, widget::column, window, Alignment, Color, Length, Subscription},
-    iced_winit::commands::popup::{destroy_popup, get_popup},
+    iced::platform_specific::shell::wayland::commands::popup::{destroy_popup, get_popup},
     theme,
     widget::{
         button::{self},
@@ -17,7 +17,7 @@ use cosmic::{
 };
 use icu::locale::Locale;
 use std::{sync::Arc, time::Duration};
-use tracker_integrations::{integration::TrackerIntegration, models::TimeEntry};
+use tracker_api::{integration::TrackerIntegration, models::TimeEntry};
 
 use crate::{
     config::{GlobalState, GLOBAL_STATE_VERSION},
@@ -136,12 +136,12 @@ fn get_indicator_color(state: &GlobalState) -> Option<Color> {
             .project_id
             .as_ref()
             .and_then(|id| state.projects.iter().find(|p| p.id == *id))
-            .and_then(|p| Color::parse(&p.color))
+            .and_then(|p| p.color.parse::<Color>().ok())
     } else {
         state
             .selected_project
             .as_ref()
-            .and_then(|p| Color::parse(&p.color))
+            .and_then(|p| p.color.parse::<Color>().ok())
     }
 }
 
@@ -159,9 +159,9 @@ impl cosmic::Application for AppletModel {
         &mut self.core
     }
 
-    fn style(&self) -> Option<cosmic::iced_runtime::Appearance> {
-        Some(cosmic::applet::style())
-    }
+    // fn style(&self) -> Option<cosmic::iced::theme::Style> {
+        // Some(theme::iced::application::style())
+    // }
 
     fn init(core: app::Core, _flags: Self::Flags) -> (Self, app::Task<self::Message>) {
         let state_handler = cosmic::cosmic_config::Config::new(Self::APP_ID, GLOBAL_STATE_VERSION)

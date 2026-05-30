@@ -3,11 +3,11 @@ use std::sync::Arc;
 use cosmic::{
     app,
     iced::Length,
-    iced_widget::{pick_list, text_input},
+    iced::widget::{pick_list, text_input},
     widget::{button, Column},
     Element, Task,
 };
-use tracker_integrations::{
+use tracker_api::{
     authentication::{
         get_integration_url, remove_api_key, remove_integration_url, set_api_key,
         set_integration_url,
@@ -68,10 +68,10 @@ impl SettingsPage {
 
         if let Some(selected_integration) = &self.state.selected_integration {
             match selected_integration {
-                tracker_integrations::models::Integration::TogglIntegration => {
+                tracker_api::models::Integration::TogglIntegration => {
                     elements.push(api_key_input.width(Length::Fill).into());
                 }
-                tracker_integrations::models::Integration::KimaiIntegration => {
+                tracker_api::models::Integration::KimaiIntegration => {
                     elements.push(integration_url_input.width(Length::Fill).into());
                     elements.push(api_key_input.width(Length::Fill).into());
                 }
