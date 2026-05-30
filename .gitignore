@@ -16,3 +16,4 @@ debian/*
 .direnv
 .env
 config.toml
+settings.json
